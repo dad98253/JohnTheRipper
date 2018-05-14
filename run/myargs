@@ -1,0 +1,1 @@
+john --debug-flags=TRACE,TRACE2,DEBUGQUIET --debug-level=1 --debug-device=FILEOUTPUT --debug-filename=debug_nogui_calltrace2.txt --debug-color=0 --format=sha512crypt-cuda  passwords
