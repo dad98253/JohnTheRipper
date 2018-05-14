@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include "../cuda_cryptsha512.h"
 #include "cuda_common.cuh"
+//#define DEBUG
+#define CUDAKERNEL
+#include "../debug.h"
 
 __constant__ uint64_t k[] = {
 	0x428a2f98d728ae22LL, 0x7137449123ef65cdLL, 0xb5c0fbcfec4d3b2fLL,
@@ -263,16 +266,16 @@ __device__ void sha512crypt(const char *pass, uint8_t passlength,
 		else
 			ctx_update(&ctx, pass, passlength);
 	}
-	sha512_digest(&ctx, alt_result);
+	sha512_digest(&ctx, alt_result);		// intermediate
 
 
 	init_ctx(&ctx);
 	for (i = 0; i < passlength; i++)
 		ctx_update(&ctx, pass, passlength);
 
-	sha512_digest(&ctx, temp_result);
+	sha512_digest(&ctx, temp_result);		// p-bytes
 
-	__shared__ char sp_sequence[THREADS][16+4];
+	__shared__ char sp_sequence[THREADS][16+4];     // what's this doing ??  - jck
 	char *p_sequence=sp_sequence[threadIdx.x];
 	memcpy(p_sequence, temp_result, passlength);
 
@@ -280,11 +283,11 @@ __device__ void sha512crypt(const char *pass, uint8_t passlength,
 	for (i = 0; i < 16 + ((unsigned char *) alt_result)[0]; i++)
 		ctx_update(&ctx, cuda_salt[0].salt, cuda_salt[0].saltlen);
 
-	sha512_digest(&ctx, temp_result);
+	sha512_digest(&ctx, temp_result);		// s-bytes
 
 	uint8_t saltlength = cuda_salt[0].saltlen;
 
-	__shared__ char ss_sequence[THREADS][16+4];
+	__shared__ char ss_sequence[THREADS][16+4];	//  ??
 	char *s_sequence=ss_sequence[threadIdx.x];
 	memcpy(s_sequence, temp_result, saltlength);
 
@@ -315,8 +318,6 @@ __device__ void sha512crypt(const char *pass, uint8_t passlength,
 		tresult[i] = alt_result[i];
 }
 
-
-
 __global__ void kernel_crypt_r(crypt_sha512_password * inbuffer,
     crypt_sha512_hash * outbuffer)
 {
@@ -325,32 +326,159 @@ __global__ void kernel_crypt_r(crypt_sha512_password * inbuffer,
 	    outbuffer[idx].v, idx, cuda_salt[0].rounds);
 }
 
+
+unsigned int initCudaDeviceFlags = 1;
+
+
 void sha512_crypt_gpu(crypt_sha512_password * inbuffer,
 	crypt_sha512_hash *outbuffer, crypt_sha512_salt *host_salt, int count)
 {
 	int blocks = (count + THREADS - 1) / THREADS;
 	crypt_sha512_password *cuda_inbuffer;
 	crypt_sha512_hash *cuda_outbuffer;
+	// Error code to check return values for CUDA calls
+    	cudaError_t err = cudaSuccess;
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: blocks = %i, count = %i, THREADS = %i\n",blocks,count,THREADS);
+
 	size_t insize = sizeof(crypt_sha512_password) * KEYS_PER_CRYPT;
 	size_t outsize = sizeof(crypt_sha512_hash) * KEYS_PER_CRYPT;
 
-	HANDLE_ERROR(cudaMalloc(&cuda_inbuffer, insize));
-	HANDLE_ERROR(cudaMalloc(&cuda_outbuffer, outsize));
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: insize = %i, outsize = %i, KEYS_PER_CRYPT = %i\n", (int)insize,(int)outsize,KEYS_PER_CRYPT);
 
-	HANDLE_ERROR(cudaMemcpy(cuda_inbuffer, inbuffer, insize,
-		cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpyToSymbol(cuda_salt, host_salt,
-		sizeof(crypt_sha512_salt)));
+	// CPU utilization is 100% when the program is waiting for the kernel to complete. Apparently, the default syncronization
+	// technique is to use a sin lock on the cpu to continmuously check for kernel completion (not very efficient on a time share system)
+	// According to online comments, setting cudaDeviceScheduleBlockingSync should cause the host CPU to block on a synchronization
+	// primitive when waiting for the device to finish work. Note that this flag can only be set one time per process.
+	if ( initCudaDeviceFlags ) {
+		initCudaDeviceFlags = 0; 
+		err = cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);//Lower CPU Utilization
+		if (err != cudaSuccess)
+		{
+			fprintf(stderr, "Failed to set cudaDeviceScheduleBlockingSync (error message: %s)!\n", cudaGetErrorString(err));
+			dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: Failed to set cudaDeviceScheduleBlockingSync (error message: %s)!\n", cudaGetErrorString(err));
+			exit(EXIT_FAILURE);
+		}
+	}
 
-	dim3 dimGrid(blocks);
-	dim3 dimBlock(THREADS);
-	kernel_crypt_r <<< dimGrid, dimBlock >>> (cuda_inbuffer,
-	    cuda_outbuffer);
-	cudaThreadSynchronize();
-	HANDLE_ERROR(cudaGetLastError());
-	HANDLE_ERROR(cudaMemcpy(outbuffer, cuda_outbuffer, outsize,
-		cudaMemcpyDeviceToHost));
+	// Allocate the device input vector cuda_inbuffer
+	err = cudaMalloc(&cuda_inbuffer, insize);
+	if (err != cudaSuccess)
+	{
+		fprintf(stderr, "Failed to allocate device vector cuda_inbuffer (error message: %s)!\n", cudaGetErrorString(err));
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: Failed to allocate device vector cuda_inbuffer (error message: %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
 
-	HANDLE_ERROR(cudaFree(cuda_inbuffer));
-	HANDLE_ERROR(cudaFree(cuda_outbuffer));
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: allocated %i bytes for cuda_inbuffer starting at %p\n", (int)insize,cuda_inbuffer);
+
+	// Allocate the device output vector cuda_outbuffer
+	err = cudaMalloc(&cuda_outbuffer, outsize);
+	if (err != cudaSuccess) {
+		fprintf(stderr, "Failed to allocate device vector cuda_outbuffer (error message: %s)!\n", cudaGetErrorString(err));
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: Failed to allocate device vector cuda_outbuffer (error message: %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: allocated %i bytes for cuda_outbuffer starting at %p\n", (int)outsize,cuda_outbuffer);
+
+	// Copy the host input vector cuda_inbuffer in host memory to the device input vector in
+	// device memory
+	err = cudaMemcpy(cuda_inbuffer, inbuffer, insize, cudaMemcpyHostToDevice);
+	if (err != cudaSuccess) {
+		fprintf(stderr, "Failed to copy vector cuda_inbuffer from host to device (error message: %s)!\n", cudaGetErrorString(err));
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: Failed to copy vector cuda_inbuffer from host to device (error message: %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: sizeof(cuda_salt) = %i, sizeof(crypt_sha512_salt) = %i\n", sizeof(cuda_salt), sizeof(crypt_sha512_salt) );
+
+	// Copy the salt vector host_salt in host memory to device memory starting at the location of 
+	// the symbol cuda_salt.  Note that cuda documentation specifies two additional parameters
+	// to this call: size_t offset = 0, cudaMemcpyKind kind = cudaMemcpyHostToDevice. Apparently,
+	// these are optional.
+	err = cudaMemcpyToSymbol(cuda_salt, host_salt, sizeof(crypt_sha512_salt));
+	if (err != cudaSuccess) {
+		fprintf(stderr, "Failed to copy vector host_salt from host to device (error message: %s)!\n", cudaGetErrorString(err));
+		// Note that this function may also return error codes from previous, asynchronous launches.
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: Failed to copy vector host_salt from host to device (error message: %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+
+	dim3 dimGrid(blocks);    // dimension dimGrid (blocks x 1 x 1)
+	dim3 dimBlock(THREADS);  // dimension dimBlock (THREADS x 1 x 1)
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: calling kernel_crypt_r <<< %ix%ix%i , %ix%ix%i >>> (cuda_inbuffer, cuda_outbuffer)\n", dimGrid.x, dimGrid.y, dimGrid.z, dimBlock.x, dimBlock.y, dimBlock.z);
+#ifdef DEBUG
+//	if ( bdebug_flag_set[DEBUGCUDAMEMCOPY] ) fprintf(stderr,"///////sha512_crypt_gpu: calling kernel_crypt_r <<< %ix%ix%i , %ix%ix%i >>> (cuda_inbuffer, cuda_outbuffer),count = %i\n", dimGrid.x, dimGrid.y, dimGrid.z, dimBlock.x, dimBlock.y, dimBlock.z,count);
+#endif
+	// Launch the kernel_crypt_r CUDA Kernel 
+	kernel_crypt_r <<< dimGrid, dimBlock >>> (cuda_inbuffer, cuda_outbuffer);
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: calling cudaThreadSynchronize\n");
+	// Block until the device has completed all preceding requested tasks
+	err = cudaThreadSynchronize();
+	if (err != cudaSuccess) {
+		// cudaThreadSynchronize() returns an error if one of the preceding tasks has failed.
+		// If the cudaDeviceBlockingSync flag was set for this device, the host thread will block
+		// until the device has finished its work.
+		fprintf(stderr, "cudaThreadSynchronize was unsuccessful. One of the launched tasks probably failed. (error message: %s)!\n", cudaGetErrorString(err));
+		// Note that this function may also return error codes from previous, asynchronous launches.
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: cudaThreadSynchronize was unsuccessful. One of the launched tasks probably failed. (error message: %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+
+	// get the last error code
+	err = cudaGetLastError();
+	if (err != cudaSuccess) {
+		// cudaGetLastError() returns the last error that has been produced by any of the runtime
+		// calls in the same host thread and resets it to cudaSuccess.
+		fprintf(stderr, "The last error reported was \"%s\"\n", cudaGetErrorString(err));
+		// Note that this function may also return error codes from previous, asynchronous launches.
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: The last error reported was \"%s\"\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: transfering %i bytes form cuda_outbuffer starting at %p to host starting at %p\n", (int)outsize, cuda_outbuffer,outbuffer);
+#ifdef DEBUG
+//	if ( bdebug_flag_set[DEBUGCUDAMEMCOPY] ) fprintf(stderr,"///////sha512_crypt_gpu: transfering %i bytes form cuda_outbuffer starting at %p to host starting at %p\n", (int)outsize, cuda_outbuffer,outbuffer);
+#endif
+//   char str[100];
+
+//   printf( "Press <Enter> to continue :\n");
+//   gets( str );
+	// Copy the device result vector cuda_outbuffer in device memory to the host result vector
+	// outbuffer in host memory.
+	err = cudaMemcpy(outbuffer, cuda_outbuffer, outsize, cudaMemcpyDeviceToHost);
+	if (err != cudaSuccess) {
+		fprintf(stderr, "Failed to copy vector cuda_outbuffer from device to host (error message: %s)!\n", cudaGetErrorString(err));
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: Failed to copy vector cuda_outbuffer from device to host (error message: %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: freeing global memory for cuda_inbuffer starting at %p\n", cuda_inbuffer);
+#ifdef DEBUG
+//	if ( bdebug_flag_set[DEBUGCUDAMEMCOPY] ) fprintf(stderr,"///////sha512_crypt_gpu: freeing global memory for cuda_inbuffer starting at %p\n", cuda_inbuffer);
+#endif
+	// Free device global memory
+	err = cudaFree(cuda_inbuffer);
+	if (err != cudaSuccess) {
+		fprintf(stderr, "Failed to free device vector cuda_inbuffer (error message: %s)!\n", cudaGetErrorString(err));
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: Failed to free device vector cuda_inbuffer (error message: %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: freeing global memory for cuda_outbuffer starting at %p\n", cuda_outbuffer);
+#ifdef DEBUG
+//	if ( bdebug_flag_set[DEBUGCUDAMEMCOPY] ) fprintf(stderr,"///////sha512_crypt_gpu: freeing global memory for cuda_outbuffer starting at %p\n", cuda_outbuffer);
+#endif
+	err = cudaFree(cuda_outbuffer);
+	if (err != cudaSuccess) {
+		fprintf(stderr, "Failed to free device vector cuda_outbuffer (error message: %s)!\n", cudaGetErrorString(err));
+		dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: Failed to free device vector cuda_outbuffer (error message: %s)!\n", cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+
+	dfprintf(__LINE__,__FILE__,TRACECUDA,"sha512_crypt_gpu: done\n");
+
 }
