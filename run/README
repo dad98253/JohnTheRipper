@@ -1,0 +1,6 @@
+
+run command for linux hashes:
+
+./john --format=sha512crypt-cuda passwords
+
+

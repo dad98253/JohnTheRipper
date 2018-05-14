@@ -1,0 +1,14 @@
+./configure --disable-opencl --disable-openmp --enable-cuda --disable-rexgen
+
+
+make clean
+make  or make debug
+
+
+./john --format=sha512crypt-cuda passwords
+
+
+./john --debug-flags=DEBUGTUTOR,TRACE --debug-level=1 --debug-device=TCPPORT --debug-server=grandma --format=sha512crypt-cuda  passwords2
+
+
+
