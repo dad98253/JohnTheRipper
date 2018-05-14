@@ -116,7 +116,7 @@ JOHN_OBJS = \
 	undrop.o \
 	regex.o pp.o \
 	c3_fmt.o \
-	unique.o putty2john.o gpg2john.o memdbg.o
+	unique.o putty2john.o gpg2john.o memdbg.o debug.o
 
 OCL_OBJS = common-opencl.o opencl_autotune.o bt.o bt_hash_type_64.o bt_hash_type_128.o bt_hash_type_192.o bt_twister.o
 
@@ -448,6 +448,8 @@ md_helper.o:	md_helper.c
 
 memdbg.o:	memdbg.c common.h arch.h memory.h memdbg.h os.h os-autoconf.h autoconfig.h jumbo.h stdint.h pseudo_intrinsics.h aligned.h
 
+debug.o:	debug.c debug.h
+
 memory.o:	memory.c arch.h misc.h jumbo.h stdint.h autoconfig.h memory.h common.h johnswap.h memdbg.h os.h os-autoconf.h
 
 misc.o:	misc.c os.h os-autoconf.h autoconfig.h jumbo.h arch.h stdint.h logger.h params.h misc.h options.h list.h loader.h formats.h getopt.h common.h memory.h john-mpi.h memdbg.h
@@ -468,7 +470,7 @@ NT_fmt.o:	NT_fmt.c arch.h misc.h jumbo.h stdint.h autoconfig.h memory.h common.h
 
 opencl_autotune.o:	opencl_autotune.c common-opencl.h common-gpu.h gpu_sensors.h arch.h misc.h jumbo.h stdint.h autoconfig.h memory.h common.h formats.h params.h path.h opencl_device_info.h memdbg.h os.h os-autoconf.h
 
-options.o:	options.c os.h os-autoconf.h autoconfig.h jumbo.h arch.h stdint.h misc.h params.h memory.h list.h loader.h formats.h logger.h status.h math.h recovery.h options.h getopt.h common.h bench.h external.h compiler.h john.h dynamic.h simd-intrinsics.h pseudo_intrinsics.h aligned.h simd-intrinsics-load-flags.h unicode.h fake_salts.h path.h regex.h john-mpi.h common-opencl.h common-gpu.h gpu_sensors.h opencl_device_info.h prince.h version.h listconf.h memdbg.h john_build_rule.h
+options.o:	options.c os.h os-autoconf.h autoconfig.h jumbo.h arch.h stdint.h misc.h params.h memory.h list.h loader.h formats.h logger.h status.h math.h recovery.h options.h getopt.h common.h bench.h external.h compiler.h john.h dynamic.h simd-intrinsics.h pseudo_intrinsics.h aligned.h simd-intrinsics-load-flags.h unicode.h fake_salts.h path.h regex.h john-mpi.h common-opencl.h common-gpu.h gpu_sensors.h opencl_device_info.h prince.h version.h listconf.h memdbg.h john_build_rule.h debug.h
 
 panama.o:	panama.c sph_panama.h sph_types.h autoconfig.h arch.h stdint.h memdbg.h os.h os-autoconf.h jumbo.h memory.h
 
