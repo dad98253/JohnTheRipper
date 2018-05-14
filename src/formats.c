@@ -33,6 +33,7 @@ typedef unsigned int ARCH_WORD_32;
 #include "jumbo.h"
 #include "bench.h"
 #include "memdbg.h"
+#include "debug.h"
 
 char fmt_null_key[PLAINTEXT_BUFFER_SIZE];
 
@@ -61,6 +62,12 @@ static void test_fmt_case(struct fmt_main *format, void *binary,
 
 void fmt_register(struct fmt_main *format)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_register: called from %s\n",jtrunwind(1));
+#ifdef DEBUG
+	if (format->private.initialized) dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_register: format->private.initialized was = %i, reset to zero\n",jtrunwind(1),format->private.initialized);
+#endif
+
 	format->private.initialized = 0;
 	format->next = NULL;
 	*fmt_tail = format;
@@ -69,6 +76,9 @@ void fmt_register(struct fmt_main *format)
 
 void fmt_init(struct fmt_main *format)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_init: called from %s, format->private.initialized = %i (if == 0, call methods.init())\n",jtrunwind(1),format->private.initialized);
+
 	if (!buf_key)
 		buf_key = mem_alloc_tiny(PLAINTEXT_BUFFER_SIZE, MEM_ALIGN_SIMD);
 
@@ -80,6 +90,9 @@ void fmt_init(struct fmt_main *format)
 			orig_len = format->params.plaintext_length;
 		}
 #endif
+
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_init: calling format->methods.init\n");
+
 		format->methods.init(format);
 #ifndef BENCH_BUILD
 		/* NOTE, we have to grab these values (the first time), from after
@@ -93,6 +106,10 @@ void fmt_init(struct fmt_main *format)
 		format->private.initialized = 1;
 	}
 #ifndef BENCH_BUILD
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_init: options.flags     = 0x%08x\n",options.flags);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_init: FLG_KEEP_GUESSING = 0x%08x\n",FLG_KEEP_GUESSING);
+
 	if (options.flags & FLG_KEEP_GUESSING)
 		format->params.flags |= FMT_NOT_EXACT;
 
@@ -120,7 +137,13 @@ void fmt_init(struct fmt_main *format)
 
 void fmt_done(struct fmt_main *format)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_done: called from %s\n",jtrunwind(1));
+
 	if (format->private.initialized) {
+
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_done: format->private.initialized was %s, reset to zero\n",format->private.initialized);
+
 		format->methods.done();
 		format->private.initialized = 0;
 #ifdef HAVE_OPENCL
@@ -141,8 +164,13 @@ void fmt_all_done(void)
 {
 	struct fmt_main *format = fmt_list;
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_all_done: called from %s\n",jtrunwind(1));
+
 	while (format) {
 		if (format->private.initialized) {
+
+			dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"fmt_all_done: format->private.initialized was %s, reset to zero\n",format->private.initialized);
+
 			format->methods.done();
 			format->private.initialized = 0;
 		}
@@ -155,6 +183,9 @@ void fmt_all_done(void)
 
 static int is_poweroftwo(size_t align)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEMISC,"is_poweroftwo: called... returning -> %s\n",debugstf(align != 0 && (align & (align - 1)) == 0));
+
 	return align != 0 && (align & (align - 1)) == 0;
 }
 
@@ -202,11 +233,18 @@ static char* is_key_right(struct fmt_main *format, int index,
 	int i, size, count, match, len;
 	char *key;
 
+	dfprintf(__LINE__,__FILE__,TRACEISKEY,"is_key_right: called, index = %i, is_test_fmt_case = %i\n",index,is_test_fmt_case);
+
 	if (is_test_fmt_case && index != 0)
 		return "index should be 0 when test_fmt_case";
 
 	count = index + 1;
+
+	dfprintf(__LINE__,__FILE__,TRACEISKEY,"is_key_right: calling format->methods.crypt_all, count = %i from %s\n",count,jtrunwind(0));
+
 	match = format->methods.crypt_all(&count, dbsalt);
+
+	dfprintf(__LINE__,__FILE__,TRACEISKEY,"is_key_right: calling format->methods.cmp_all, match = %i\n",match);
 
 	if ((match && !format->methods.cmp_all(binary, match)) ||
 	    (!match && format->methods.cmp_all(binary, match))) {
@@ -220,6 +258,9 @@ static char* is_key_right(struct fmt_main *format, int index,
 	}
 
 	for (i = match - 1; i >= 0; i--) {
+
+		dfprintf(__LINE__,__FILE__,TRACEISKEY,"is_key_right: calling format->methods.cmp_one, i = %i\n",i);
+
 		if (format->methods.cmp_one(binary, i))
 			break;
 	}
@@ -235,6 +276,10 @@ static char* is_key_right(struct fmt_main *format, int index,
 	}
 
 	for (size = 0; size < PASSWORD_HASH_SIZES; size++)
+//	{    ////////// ?
+
+//	dfprintf(__LINE__,__FILE__,TRACEISKEY,"is_key_right: calling format->methods.binary_hash, size = %i\n",size);
+
 	if (format->methods.binary_hash[size] &&
 	    format->methods.get_hash[size](i) !=
 	    format->methods.binary_hash[size](binary)) {
@@ -271,6 +316,9 @@ static char* is_key_right(struct fmt_main *format, int index,
 		}
 		return err_buf;
 	}
+//	}   ////////// ?
+
+	dfprintf(__LINE__,__FILE__,TRACEISKEY,"is_key_right: calling format->methods.cmp_exact, i = %i\n",i);
 
 	if (!format->methods.cmp_exact(ciphertext, i)) {
 #ifndef BENCH_BUILD
@@ -282,8 +330,12 @@ static char* is_key_right(struct fmt_main *format, int index,
 		return err_buf;
 	}
 
+	dfprintf(__LINE__,__FILE__,TRACEISKEY,"is_key_right: calling format->methods.get_key, i = %i\n",i);
+
 	key = format->methods.get_key(i);
 	len = strlen(key);
+
+	dfprintf(__LINE__,__FILE__,TRACEISKEY,"is_key_right: called format->methods.get_key, key = %s\n",key);
 
 	if (len < format->params.plaintext_min_length ||
 		len > format->params.plaintext_length) {
@@ -344,10 +396,11 @@ static char *fmt_self_test_body(struct fmt_main *format,
     void *binary_copy, void *salt_copy)
 {
 	static char s_size[32];
+	int isize;
 #endif
 	struct fmt_tests *current;
 	char *ciphertext, *plaintext;
-	int ntests, done, index, max, size;
+	int ntests, done, index, max;
 	void *binary, *salt;
 	int binary_align_warned = 0, salt_align_warned = 0;
 	int salt_cleaned_warned = 0, binary_cleaned_warned = 0;
@@ -372,6 +425,9 @@ static char *fmt_self_test_body(struct fmt_main *format,
 	int fmt_split_case = ((format->params.flags & FMT_SPLIT_UNIFIES_CASE)==FMT_SPLIT_UNIFIES_CASE);
 	int while_condition;           // since -test and -test-full use very do{}while(cond) so we use a var.
 	struct db_salt *dbsalt;
+#ifdef DEBUG
+	int iCountSalts;		// used to debug salt compare problem
+#endif
 
 	// validate that there are no NULL function pointers
 	if (format->methods.prepare == NULL)    return "method prepare NULL";
@@ -379,7 +435,14 @@ static char *fmt_self_test_body(struct fmt_main *format,
 	if (format->methods.split == NULL)      return "method split NULL";
 	if (format->methods.init == NULL)       return "method init NULL";
 
-	(void)size;  // quiet stupid warning.
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: called from %s, full_lvl = %i\n",jtrunwind(1),full_lvl);
+#ifdef DEBUG
+//	debugdmpdb_main("dump of db_main passed to fmt_self_test_body", db, "db");
+//	debugdmpfmt_main("dump of db->format passed to fmt_self_test_body", db->format, "db->format");
+#endif
+
+//	(void)size;  // quiet stupid warning.  ... // what's this do?? -jck
+//	dfprintf(__LINE__,__FILE__,TRACE,"fmt_self_test_body: size = 0x%08x   // quiet stupid warning.  ... // what's this do?? -jck\n",size);
 
 /*
  * Test each format just once unless we're debugging.
@@ -390,6 +453,9 @@ static char *fmt_self_test_body(struct fmt_main *format,
 #endif
 
 #ifndef BENCH_BUILD
+
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: FLG_NOTESTS    = 0x%08x -> %s\n",FLG_NOTESTS,debugstf( options.flags & FLG_NOTESTS ));
+
 	if (options.flags & FLG_NOTESTS) {
 		fmt_init(format);
 		dyna_salt_init(format);
@@ -402,6 +468,8 @@ static char *fmt_self_test_body(struct fmt_main *format,
 		return NULL;
 	}
 #endif
+
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: calling MemDbg_Validate_msg\n");
 
 	MemDbg_Validate_msg(MEMDBG_VALIDATE_DEEPEST,
 	                    "\nAt start of self-test:");
@@ -421,6 +489,10 @@ static char *fmt_self_test_body(struct fmt_main *format,
 		current = format->params.tests;
 	}
 #endif
+
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: ntests = %i\n",ntests);
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: current->fields[1]  = 0x%08x\n",current->fields[1]);
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: current->ciphertext = 0x%08x\n",current->ciphertext);
 
 	if (ntests==0) return NULL;
 
@@ -458,6 +530,8 @@ static char *fmt_self_test_body(struct fmt_main *format,
 	    format->params.plaintext_length > PLAINTEXT_BUFFER_SIZE - 3)
 		return "plaintext_length";
 
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: format->params.binary_align, ..salt_align  = %i, %i\n",format->params.binary_align,format->params.salt_align);
+
 	if (!is_poweroftwo(format->params.binary_align))
 		return "binary_align";
 
@@ -466,12 +540,18 @@ static char *fmt_self_test_body(struct fmt_main *format,
 
 	if (format->methods.valid("*", format))
 		return "valid";
+#ifdef DEBUG
+	debugdmpfmt_main2(FMTSELFTESTDEBUGDMPFMT,"", format, "format");
+#endif
 
 #ifndef JUMBO_JTR
 	fmt_init(format);
 #endif
 
 	ml = format->params.plaintext_length;
+
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: ml  = %i\n",ml);
+
 #ifndef BENCH_BUILD
 	/* UTF-8 bodge in reverse. Otherwise we will get truncated keys back
 	   from the max-length self-test */
@@ -484,7 +564,13 @@ static char *fmt_self_test_body(struct fmt_main *format,
 #ifndef JUMBO_JTR
 	format->methods.reset(NULL);
 #endif
+
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): calling format->methods.reset(db)\n",jtrunwind(0));
+
 	format->methods.reset(db);
+
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): calling dyna_salt_init\n",jtrunwind(0));
+
 	dyna_salt_init(format);
 
 #ifndef JUMBO_JTR
@@ -525,6 +611,9 @@ static char *fmt_self_test_body(struct fmt_main *format,
 	index = 0; max = format->params.max_keys_per_crypt;
 
 	do {
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): start of big do-while(while_condition)\n",jtrunwind(0));
+
 		if (!current->fields[1])
 			current->fields[1] = current->ciphertext;
 		ciphertext = format->methods.prepare(current->fields, format);
@@ -574,6 +663,9 @@ static char *fmt_self_test_body(struct fmt_main *format,
 				MEM_FREE(k);
 			}
 		}
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): full_lvl = %i\n",jtrunwind(0),full_lvl);
+
 		if (full_lvl >= 0) {
 			// numerous tests. We need to 'merge' into 1, probably.
 			if (format->methods.split != fmt_default_split) {
@@ -586,10 +678,19 @@ static char *fmt_self_test_body(struct fmt_main *format,
 		}
 #endif
 
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): calling format->methods.split\n",jtrunwind(0));
+#ifdef DEBUG
+		dyna_salt_dmp(salt, db->salts, format->params.salt_size);
+#endif
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): ciphertext = %s\n",jtrunwind(0),ciphertext);
+
 		ciphertext = format->methods.split(ciphertext, 0, format);
 		if (!ciphertext)
 			return "split() returned NULL";
 		plaintext = current->plaintext;
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): plaintext = %s\n",jtrunwind(0),plaintext);
 
 		if (!sl)
 			sl = strlen(plaintext);
@@ -621,6 +722,9 @@ static char *fmt_self_test_body(struct fmt_main *format,
 #endif
 
 		/* validate that binary() returns cleaned buffer */
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): extra_tests -> %s !binary_cleaned_warned -> %s format->params.binary_size -> %s\n",jtrunwind(0),debugstf(extra_tests),debugstf(!binary_cleaned_warned),debugstf(format->params.binary_size));
+
 		if (extra_tests && !binary_cleaned_warned && format->params.binary_size) {
 			memset(binary, 0xAF, format->params.binary_size);
 			binary = format->methods.binary(ciphertext);
@@ -633,6 +737,7 @@ static char *fmt_self_test_body(struct fmt_main *format,
 					/* possibly did not clean the binary. */
 					puts("Warning: binary() not pre-cleaning buffer");
 					binary_cleaned_warned = 1;
+					dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): Warning: binary() not pre-cleaning buffer\n",jtrunwind(0));
 				}
 			}
 			/* Clean up the mess we might have caused */
@@ -644,6 +749,12 @@ static char *fmt_self_test_body(struct fmt_main *format,
 			memcpy(binary_copy, binary, format->params.binary_size);
 		binary = binary_copy;
 
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): binary = 0x%08x, format->params.binary_size = %i\n",jtrunwind(0),binary,format->params.binary_size);
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): calling format->methods.salt, ciphertext = %s\n",jtrunwind(0),ciphertext);
+#ifdef DEBUG
+		dyna_salt_dmp(salt, db->salts, format->params.salt_size);
+#endif
+		/* Call get_salt */ 
 		salt = format->methods.salt(ciphertext);
 #ifndef JUMBO_JTR
 		if (!is_aligned(salt, format->params.salt_align) &&
@@ -655,6 +766,13 @@ static char *fmt_self_test_body(struct fmt_main *format,
 #else
 		if (!salt)
 			return "salt() returned NULL";
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): salt = 0x%08x, format->params.salt_size = %i\n",jtrunwind(0),salt,format->params.salt_size);
+
+#ifdef DEBUG
+		dyna_salt_dmp(salt, db->salts, format->params.salt_size);
+#endif
+
 		dyna_salt_create(salt);
 #if ARCH_ALLOWS_UNALIGNED
 		if (mem_saving_level <= 2 || format->params.salt_align >= MEM_ALIGN_SIMD)
@@ -667,12 +785,17 @@ static char *fmt_self_test_body(struct fmt_main *format,
 		}
 #endif
 
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): validate that salt dupe checks will work (%s)\n",jtrunwind(0),debugstf(!salt_dupe_warned && format->params.salt_size));
+#ifdef DEBUG
+		dyna_salt_dmp(salt, db->salts, format->params.salt_size);
+#endif
+
 		/* validate that salt dupe checks will work */
 		if (!salt_dupe_warned && format->params.salt_size) {
 			char *copy = mem_alloc(format->params.salt_size);
 
 			memcpy(copy, salt, format->params.salt_size);
-			salt = format->methods.salt(ciphertext);
+			salt = format->methods.salt(ciphertext);    /*  get salt (again?)  */
 			dyna_salt_create(salt);
 			if (dyna_salt_cmp(copy, salt, format->params.salt_size))
 			{
@@ -683,13 +806,25 @@ static char *fmt_self_test_body(struct fmt_main *format,
 				//fprintf(stderr, "%s\n", ciphertext);
 				//dump_stuff(copy, format->params.salt_size);
 				//dump_stuff(salt, format->params.salt_size);
+				dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body:%s\n", ciphertext);
+				debug_dump_stuff2(FMTSELFTESTDEBUG,copy, format->params.salt_size);
+				debug_dump_stuff2(FMTSELFTESTDEBUG,salt, format->params.salt_size);
+
 			}
 			dyna_salt_remove(copy);
 			MEM_FREE(copy);
 		}
 
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): validate that salt() returns cleaned buffer (%s)\n",jtrunwind(0),debugstf(extra_tests && !salt_cleaned_warned && format->params.salt_size));
+#ifdef DEBUG
+		dyna_salt_dmp(salt, db->salts, format->params.salt_size);
+#endif
+
 		/* validate that salt() returns cleaned buffer */
 		if (extra_tests && !salt_cleaned_warned && format->params.salt_size) {
+
+			dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): (format->params.flags & FMT_DYNA_SALT) == FMT_DYNA_SALT -> %s\n",jtrunwind(0),debugstf((format->params.flags & FMT_DYNA_SALT) == FMT_DYNA_SALT));
+
 			if ((format->params.flags & FMT_DYNA_SALT) == FMT_DYNA_SALT) {
 				dyna_salt *p1, *p2=0, *p3=0;
 				p1 = *((dyna_salt**)salt);
@@ -716,10 +851,20 @@ static char *fmt_self_test_body(struct fmt_main *format,
 			} else {
 				memset(salt, 0xAF, format->params.salt_size);
 				salt = format->methods.salt(ciphertext);
+#ifdef DEBUG
+				dyna_salt_dmp(salt, NULL, format->params.salt_size);
+#endif
+				dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): ((unsigned char*)salt)[format->params.salt_size-1] == 0xAF -> %s\n",jtrunwind(0),debugstf(((unsigned char*)salt)[format->params.salt_size-1] == 0xAF));
+
 				if (((unsigned char*)salt)[format->params.salt_size-1] == 0xAF)
 				{
 					memset(salt, 0xC3, format->params.salt_size);
 					salt = format->methods.salt(ciphertext);
+#ifdef DEBUG
+					dyna_salt_dmp(salt, NULL, format->params.salt_size);
+#endif
+					dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): ((unsigned char*)salt)[format->params.salt_size-1] == 0xC3 -> %s\n",jtrunwind(0),debugstf(((unsigned char*)salt)[format->params.salt_size-1] == 0xC3));
+
 					if (((unsigned char*)salt)[format->params.salt_size-1] == 0xC3) {
 						/* possibly did not clean the salt. */
 						puts("Warning: salt() not pre-cleaning buffer");
@@ -729,14 +874,21 @@ static char *fmt_self_test_body(struct fmt_main *format,
 				/* Clean up the mess we might have caused */
 				memset(salt, 0, format->params.salt_size);
 			}
-			salt = format->methods.salt(ciphertext);
-			dyna_salt_create(salt);
-		}
+				
+			dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): get the salt again and create dyna_salt\n",jtrunwind(0));
 
-		*((char*)salt_copy) = 0;
-		if (format->params.salt_size)
-			memcpy(salt_copy, salt, format->params.salt_size);
-		salt = salt_copy;
+			salt = format->methods.salt(ciphertext); /* Converts an ASCII salt to its internal representation */
+			dyna_salt_create(salt); /* No=op unless DYNA_SALT_DEBUG is set */
+		}
+#ifdef DEBUG
+		if ( format->params.salt_size ) {
+			dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: format->params.salt_size = %i \n",format->params.salt_size);
+		}
+#endif
+		*((char*)salt_copy) = 0;	/* set input parameter "salt_copy" to null string */
+		if (format->params.salt_size)	/* if salt size is set */
+			memcpy(salt_copy, salt, format->params.salt_size);	/* copy the salt created above (from ciphertext) to salt_copy  */
+		salt = salt_copy;		/* point salt to salt_copy. If salt size is zero, salt will now be zero */
 
 #ifndef JUMBO_JTR
 		if (strcmp(ciphertext,
@@ -748,7 +900,7 @@ static char *fmt_self_test_body(struct fmt_main *format,
 		    SALT_HASH_SIZE)
 			return "salt_hash";
 
-		format->methods.set_salt(salt);
+		format->methods.set_salt(salt); /* Sets a salt for the crypt_all() method */
 #ifdef JUMBO_JTR
 		if (strcmp(ciphertext,
 		    format->methods.source(ciphertext, binary))) {
@@ -758,23 +910,54 @@ static char *fmt_self_test_body(struct fmt_main *format,
 		if ((format->methods.get_hash[0] != fmt_default_get_hash) &&
 		    strlen(ciphertext) > MAX_CIPHERTEXT_SIZE)
 			return "Huge ciphertext format can't use get_hash()";
+#ifdef DEBUG
+		iCountSalts = 0;
+#endif  // DEBUG
 
-		if ((dbsalt = db->salts))
-		do {
-			if (!dyna_salt_cmp(salt, dbsalt->salt,
-			                   format->params.salt_size))
-				break;
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): db->salts  = 0x%08x\n",jtrunwind(0),db->salts);
+		dbsalt = db->salts;
+		if ( db->salts ) {
+			debugdmpdb_salt2(FMTSELFTESTDEBUGDMPSALT, "", db->salts, db, ".salts");
+		}
+		if ( dbsalt ) do {
+#ifdef DEBUG
+			iCountSalts++;
+#endif  // DEBUG
+			if (!dyna_salt_cmp(salt, dbsalt->salt, format->params.salt_size)) break;
 		} while ((dbsalt = dbsalt->next));
-		if (db->salts && !dbsalt) {
+#ifdef DEBUG		
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): db->salts -> %s, !dbsalt -> %s,"
+			" iCountSalts = %i - salt() return inconsistent? %s !\n",jtrunwind(0),debugstf(db->salts),
+			debugstf(!dbsalt),iCountSalts,debugstf(db->salts && !dbsalt));
+#endif  // DEBUG
+		if (db->salts && !dbsalt && !( format->private.initialized >= 2 && (format->params.flags & FMT_DYNA_SALT) != FMT_DYNA_SALT ) ) {	
+						// if db-salts exsists (not == null ptr) and the above 
+						// do-while does not exit via a "break" (implies 
+						// dyna_salt_cmp never found a match)
+						// and this is not the second call to fmt_self_test
+						// for a non-syna-salt format
+#ifdef DEBUG
+			iCountSalts = 0;		
+			if ((dbsalt = db->salts)) do {
+				dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUGDMPSALT,"dump salt %i :\n",iCountSalts);
+				iCountSalts++;
+				dyna_salt_dmp(salt, dbsalt->salt, format->params.salt_size);
+			} while ((dbsalt = dbsalt->next));
+#endif  // DEBUG
 			return "Could not find salt in db - salt() return inconsistent?";
 		}
-#endif
-#endif
+#endif  // BENCH_BUILD
+#endif  // JUMBO_JTR
 #ifndef JUMBO_JTR
 		format->methods.set_key(current->plaintext, index);
 
 		{
 			int count = index + 1;
+
+			dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,
+				"fmt_self_test_body (%s): calling format->methods.crypt_all, count = %i\n",
+				jtrunwind(0),count);
+
 			int match = format->methods.crypt_all(&count, NULL);
 /* If salt is NULL, the return value must always match *count the way it is
  * after the crypt_all() call. */
@@ -782,11 +965,11 @@ static char *fmt_self_test_body(struct fmt_main *format,
 				return "crypt_all";
 		}
 
-		for (size = 0; size < PASSWORD_HASH_SIZES; size++)
-		if (format->methods.binary_hash[size] &&
-		    format->methods.get_hash[size](index) !=
-		    format->methods.binary_hash[size](binary)) {
-			sprintf(s_size, "get_hash[%d](%d)", size, index);
+		for (isize = 0; isize < PASSWORD_HASH_SIZES; isize++)
+		if (format->methods.binary_hash[isize] &&
+		    format->methods.get_hash[isize](index) !=
+		    format->methods.binary_hash[isize](binary)) {
+			sprintf(s_size, "get_hash[%d](%d)", isize, index);
 			return s_size;
 		}
 
@@ -802,6 +985,10 @@ static char *fmt_self_test_body(struct fmt_main *format,
 			return "get_key";
 #else
 #ifndef BENCH_BUILD
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body (%s): extra_tests -> %s,"
+			" (maxlength == 0) -> %s\n",jtrunwind(0),debugstf(extra_tests),debugstf(maxlength == 0));
+
 		if (extra_tests && maxlength == 0) {
 			//int min = format->params.min_keys_per_crypt;
 			maxlength = 1;
@@ -823,6 +1010,9 @@ static char *fmt_self_test_body(struct fmt_main *format,
 				return "crypt_all";
 #endif
 #if defined(HAVE_OPENCL) || defined(HAVE_CUDA)
+
+			dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: calling advance_cursor (for bench build?)\n");
+
 			advance_cursor();
 #endif
 			/* 3. Now read them back and verify they are intact */
@@ -849,6 +1039,9 @@ static char *fmt_self_test_body(struct fmt_main *format,
 #endif
 
 #endif
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: full_lvl = %i\n",full_lvl);
+
 		if (full_lvl >= 0) {
 			// Test FMT_CASE
 			format->methods.clear_keys();
@@ -869,11 +1062,20 @@ static char *fmt_self_test_body(struct fmt_main *format,
 			}
 			fmt_set_key(current->plaintext, max - 1);
 		} else {
+
+			dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: index = %i\n",index);
+
 			if (index == 0)
 				format->methods.clear_keys();
+
+			dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"current->plaintext = %s\n",current->plaintext);
+
 			fmt_set_key(current->plaintext, index);
 		}
 #if !defined(BENCH_BUILD) && (defined(HAVE_OPENCL) || defined(HAVE_CUDA))
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: calling advance_cursor, full_lvl = %i\n",full_lvl);
+
 		advance_cursor();
 #endif
 		if (full_lvl >= 0) {
@@ -950,10 +1152,15 @@ static char *fmt_self_test_body(struct fmt_main *format,
 			current = format->params.tests;
 			done |= 2;
 		}
+
+		dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: calling dyna_salt_remove\n");
+
 		dyna_salt_remove(salt);
 		while_condition = done != 3;
 		}
 	} while (while_condition);
+
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: end of while(while_condition)\n");
 
 	if (full_lvl >= 0) {
 		if (plaintext_has_alpha) {
@@ -1064,6 +1271,8 @@ static char *fmt_self_test_body(struct fmt_main *format,
 
 	MemDbg_Validate_msg(MEMDBG_VALIDATE_DEEPEST, "At end of self-test:");
 
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test_body: At end of self-test\n");
+
 	return NULL;
 }
 
@@ -1072,6 +1281,8 @@ static void test_fmt_case(struct fmt_main *format, void *binary,
 	int *plaintext_has_alpha, struct db_salt *dbsalt)
 {
 	char *plain_copy, *pk;
+
+	dfprintf(__LINE__,__FILE__,TRACETESTFMTCASE,"test_fmt_case: called from %s\n",jtrunwind(1));
 
 	if (*plaintext == 0)
 		return;
@@ -1613,6 +1824,8 @@ char *fmt_self_test(struct fmt_main *format)
 	void *binary_alloc, *salt_alloc;
 	void *binary_copy, *salt_copy;
 
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test(NOT JUMBO): called from %s\n",jtrunwind(1));
+
 	binary_copy = alloc_binary(&binary_alloc,
 	    format->params.binary_size, format->params.binary_align);
 	salt_copy = alloc_binary(&salt_alloc,
@@ -1631,6 +1844,9 @@ char *fmt_self_test(struct fmt_main *format, struct db_main *db)
 	char *retval;
 	void *binary_alloc, *salt_alloc;
 	void *binary_copy, *salt_copy;
+
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test(JUMBO): called from %s\n",jtrunwind(1));
+	dfprintf(__LINE__,__FILE__,FMTSELFTESTDEBUG,"fmt_self_test(JUMBO): format->params.binary_size =%i, align = %i, format->params.salt_size = %i, align = %i\n",format->params.binary_size?format->params.binary_size:1,format->params.binary_align,format->params.salt_size?format->params.salt_size:1,format->params.salt_align);
 
 	binary_copy = alloc_binary(&binary_alloc,
 	    format->params.binary_size?format->params.binary_size:1, format->params.binary_align);
@@ -1662,6 +1878,9 @@ void fmt_default_done(void)
 
 void fmt_default_reset(struct db_main *db)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEFNTDFLTRESET,"fmt_default_reset: called (does nothing...)\n");
+
 }
 
 char *fmt_default_prepare(char *fields[10], struct fmt_main *self)
@@ -1671,6 +1890,9 @@ char *fmt_default_prepare(char *fields[10], struct fmt_main *self)
 
 char *fmt_default_split(char *ciphertext, int index, struct fmt_main *self)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEFNTDFLTSPLIT,"fmt_default_split: called (does nothing... returns first argument)\n");
+
 	return ciphertext;
 }
 

@@ -27,6 +27,7 @@
 #include "unicode.h"
 #include "config.h"
 #include "memdbg.h"
+#include "debug.h"
 
 static double progress = 0;
 static int rec_rule;
@@ -95,6 +96,8 @@ static void single_alloc_keys(struct db_keys **keys)
 static void single_init(void)
 {
 	struct db_salt *salt;
+
+	dfprintf(__LINE__,__FILE__,TRACESINGLE,"single_init: called from %s\n",jtrunwind(1));
 
 	log_event("Proceeding with \"single crack\" mode");
 
@@ -442,6 +445,8 @@ static void single_run(void)
 	int min, saved_min;
 	int have_words;
 
+	dfprintf(__LINE__,__FILE__,TRACESINGLE,"single_run: called from %s\n",jtrunwind(1));
+
 	saved_min = rec_rule;
 	rpp_real_run = 1;
 	while ((prerule = rpp_next(rule_ctx))) {
@@ -516,6 +521,8 @@ static void single_done(void)
 {
 	struct db_salt *salt;
 
+	dfprintf(__LINE__,__FILE__,TRACESINGLE,"single_done: called from %s\n",jtrunwind(1));
+
 	if (!event_abort) {
 		if ((salt = single_db->salts)) {
 			log_event("- Processing the remaining buffered "
@@ -541,6 +548,10 @@ void do_single_crack(struct db_main *db)
 {
 	struct rpp_context ctx;
 
+	dfprintf(__LINE__,__FILE__,TRACESINGLE,"do_single_crack: called from %s\n",jtrunwind(1));
+#ifdef DEBUG	
+	debugdmpdb_main("", db, "db in do_single_crack");
+#endif
 	single_db = db;
 	rule_ctx = &ctx;
 	single_init();

@@ -55,7 +55,9 @@ typedef unsigned long long ARCH_WORD_64;
 #define is_aligned(PTR, CNT) ((((ARCH_WORD)(const void *)(PTR))&(CNT-1))==0)
 
 #ifdef __GNUC__
-#if __GNUC__ >= 5
+#if __GNUC__ == 5 && __GNUC_MINOR__ == 4
+#define MAYBE_INLINE inline
+#elif __GNUC__ >= 5
 #define MAYBE_INLINE __attribute__((gnu_inline)) inline
 #elif __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7) || defined(__INTEL_COMPILER) || __NVCC__
 #define MAYBE_INLINE __attribute__((always_inline)) inline
@@ -69,7 +71,6 @@ typedef unsigned long long ARCH_WORD_64;
 #else
 #define MAYBE_INLINE
 #endif
-
 #if ((__GNUC__ == 2) && (__GNUC_MINOR__ >= 7)) || (__GNUC__ > 2)
 #define CC_CACHE_ALIGN \
 	__attribute__ ((aligned (MEM_ALIGN_CACHE)))

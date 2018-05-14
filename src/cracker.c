@@ -65,6 +65,7 @@
 #include "common-gpu.h"
 #endif
 #include "memdbg.h"
+#include "debug.h"
 
 #ifdef index
 #undef index
@@ -107,6 +108,9 @@ static void crk_dummy_fix_state(void)
 
 static void crk_init_salt(void)
 {
+
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_init_salt: called from %s\n",jtrunwind(1));
+
 	if (!crk_db->salts->next) {
 		crk_methods.set_salt(crk_db->salts->salt);
 		crk_methods.set_salt = crk_dummy_set_salt;
@@ -147,6 +151,8 @@ void crk_init(struct db_main *db, void (*fix_state)(void),
 	char *where;
 	size_t size;
 
+	dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_init: called from %s\n",jtrunwind(1));
+
 /*
  * We should have already called fmt_self_test() from john.c.  This redundant
  * self-test is only to catch some more obscure bugs in debugging builds (it
@@ -155,12 +161,21 @@ void crk_init(struct db_main *db, void (*fix_state)(void),
  * or if the format has a custom reset() method (we've already called reset(db)
  * from john.c, and we don't want to mess with the format's state).
  */
+#ifdef DEBUG
+	debugdmpdb_main2(TRACECRACKER4,"db_main structure dump from crk_init prior to fmt_self_test call : ",db, "db");
+#endif
+
 	if (db->loaded && db->format->methods.reset == fmt_default_reset)
 	if ((where = fmt_self_test(db->format, db))) {
 		log_event("! Self test failed (%s)", where);
 		fprintf(stderr, "Self test failed (%s)\n", where);
 		error();
 	}
+
+#ifdef DEBUG
+	debugSetDBLevel(-1);	// turn off quiet mode
+	debugdmpdb_main2(TRACECRACKER4,"db_main structure dump in crk_init after call to fmt_self_test : ",db, "db");
+#endif
 
 #if defined(HAVE_OPENCL) || defined(HAVE_CUDA)
 	/* This erases the 'spinning wheel' cursor from self-test */
@@ -224,6 +239,8 @@ static void crk_remove_salt(struct db_salt *salt)
 {
 	struct db_salt **current;
 
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_remove_salt: called from %s\n",jtrunwind(1));
+
 	crk_db->salt_count--;
 
 	current = &crk_db->salts;
@@ -258,6 +275,8 @@ static void crk_remove_hash(struct db_salt *salt, struct db_password *pw)
 {
 	struct db_password **start, **current;
 	int hash, count;
+
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_remove_hash: called from %s\n",jtrunwind(1));
 
 	crk_db->password_count--;
 
@@ -333,6 +352,8 @@ static int crk_process_guess(struct db_salt *salt, struct db_password *pw,
 	char tmp8[PLAINTEXT_BUFFER_SIZE + 1];
 	int dupe;
 	char *key, *utf8key, *repkey, *replogin, *repuid;
+
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_process_guess : called from %s\n",jtrunwind(1));
 
 	if (index >= 0 && index < crk_params.max_keys_per_crypt) {
 		dupe = !memcmp(&crk_timestamps[index],
@@ -441,6 +462,8 @@ static char *crk_loaded_counts(void)
 	static char s_loaded_counts[80];
 	char nbuf[24];
 
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_loaded_counts : called from %s\n",jtrunwind(1));
+
 	if (crk_db->password_count == 0)
 		return "No remaining hashes";
 
@@ -467,6 +490,8 @@ static int crk_remove_pot_entry(char *ciphertext)
 	struct tms buffer;
 	clock_t start = times(&buffer), end;
 #endif
+
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_remove_pot_entry : called from %s\n",jtrunwind(1));
 
 	/*
 	 * If the pot entry is truncated from a huge ciphertext, we have
@@ -586,6 +611,9 @@ int crk_reload_pot(void)
 
 	salt_time = 0;
 #endif
+
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_reload_pot : called from %s\n",jtrunwind(1));
+
 	event_reload = 0;
 
 	if (crk_params.flags & FMT_NOT_EXACT)
@@ -673,6 +701,8 @@ static void crk_mpi_probe(void)
 static void crk_poll_files(void)
 {
 	struct stat trigger_stat;
+
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_poll_files : called from %s\n",jtrunwind(1));
 
 	if (options.abort_file &&
 	    stat(path_expand(options.abort_file), &trigger_stat) == 0) {
@@ -772,6 +802,8 @@ static int crk_password_loop(struct db_salt *salt)
 #if CRK_PREFETCH
 	unsigned int target;
 #endif
+
+	dfprintf(__LINE__,__FILE__,TRACECRACKER2,"crk_password_loop: called with count = %i... called from %s\n",crk_key_index,jtrunwind(1));
 
 #if !OS_TIMER
 	sig_timer_emu_tick();
@@ -932,6 +964,8 @@ static int crk_salt_loop(void)
 
 	salt = crk_db->salts;
 
+        dfprintf(__LINE__,__FILE__,TRACECRACKER3,"crk_salt_loop: called from %s with db_salt for %s\n",jtrunwind(1),salt->salt);
+
 	/* on first run, right after restore, this can be non-zero */
 	if (status.resume_salt) {
 		struct db_salt *s = salt;
@@ -995,13 +1029,17 @@ static int crk_salt_loop(void)
 
 int crk_process_key(char *key)
 {
+
+        dfprintf(__LINE__,__FILE__,GETKEYDEBUG,"crk_process_key: called from %s, if(crk_db->loaded) -> %s, crk_key_index = %i\n",jtrunwind(1),debugstf(crk_db->loaded),crk_key_index);
+
 	if (crk_db->loaded) {
 		if (crk_key_index == 0)
 			crk_methods.clear_keys();
 
 		crk_methods.set_key(key, crk_key_index++);
 
-		if (crk_key_index >= crk_params.max_keys_per_crypt ||
+//		if (crk_key_index >= crk_params.max_keys_per_crypt ||
+		if ( crk_key_index >= crk_params.max_keys_per_crypt ||
 		    (options.force_maxkeys &&
 		     crk_key_index >= options.force_maxkeys))
 			return crk_salt_loop();
@@ -1045,6 +1083,8 @@ int crk_process_salt(struct db_salt *salt)
 	char *ptr;
 	char key[PLAINTEXT_BUFFER_SIZE];
 	int count, count_from_guesses, index;
+
+        dfprintf(__LINE__,__FILE__,TRACECRACKER3,"crk_process_salt: called from %s with db_salt @ %p\n",jtrunwind(1),salt);
 
 	if (crk_guesses) {
 		crk_guesses->count = 0;
@@ -1126,6 +1166,9 @@ char *crk_get_key2(void)
 
 void crk_done(void)
 {
+
+        dfprintf(__LINE__,__FILE__,TRACECRACKER,"crk_done : called from %s\n",jtrunwind(1));
+
 	if (crk_db->loaded) {
 		if (crk_key_index && crk_db->salts && !event_abort)
 			crk_salt_loop();

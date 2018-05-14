@@ -27,9 +27,13 @@
 #define FORMAT_TAG			"$6$"
 #define FORMAT_TAG_LEN		(sizeof(FORMAT_TAG)-1)
 
+#include "debug.h"
+
 /* ------- Check if the ciphertext if a valid SHA-512 crypt ------- */
 static int valid(char * ciphertext, struct fmt_main * self) {
 	char *pos, *start;
+
+	dfprintf(__LINE__,__FILE__,DEBUGVALID,"valid: called from (%s)\n",jtrunwind(1));
 
 	if (strncmp(ciphertext, FORMAT_TAG, FORMAT_TAG_LEN))
 		return 0;

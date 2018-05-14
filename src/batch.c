@@ -20,9 +20,13 @@
 #include "wordlist.h"
 #include "inc.h"
 #include "memdbg.h"
+#include "debug.h"
 
 static void do_single_pass(struct db_main *db)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEBATCH,"do_single_pass: called\n");
+
 	do_single_crack(db);
 	db->options->flags &= ~DB_WORDS; /* Might speed up pot sync */
 }
@@ -30,6 +34,8 @@ static void do_single_pass(struct db_main *db)
 static void do_wordlist_pass(struct db_main *db)
 {
 	char *name;
+
+	dfprintf(__LINE__,__FILE__,TRACEBATCH,"do_wordlist_pass: called\n");
 
 	if (!(name = cfg_get_param(SECTION_OPTIONS, NULL, "Wordlist")))
 	if (!(name = cfg_get_param(SECTION_OPTIONS, NULL, "Wordfile")))
@@ -40,11 +46,17 @@ static void do_wordlist_pass(struct db_main *db)
 
 static void do_incremental_pass(struct db_main *db)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEBATCH,"do_incremental_pass: called\n");
+
 	do_incremental_crack(db, NULL);
 }
 
 void do_batch_crack(struct db_main *db)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEBATCH,"do_batch_crack: status.pass = %i\n",status.pass);
+
 	switch (status.pass) {
 	case 0:
 	case 1:

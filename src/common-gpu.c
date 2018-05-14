@@ -39,6 +39,7 @@
 #include "logger.h"
 #include "signals.h"
 #include "memdbg.h"
+#include "debug.h"
 
 /* These are shared between OpenCL and CUDA */
 int gpu_id;
@@ -120,12 +121,32 @@ unsigned int temp_dev_id[MAX_GPU_DEVICES];
 
 void nvidia_probe(void)
 {
-#if __linux__ && HAVE_LIBDL
-	if (nvml_lib)
-		return;
+	int iflagset;
+	char *isset[] = { "not set", "set" };
+	nvmlReturn_t nvmlRet;
 
-	if (!(nvml_lib = dlopen("libnvidia-ml.so", RTLD_LAZY|RTLD_GLOBAL)))
+	dfprintf(__LINE__,__FILE__,DEBUGINIT,"nvidia_probe: called from %s\n",jtrunwind(1));
+	iflagset = 0;
+#ifdef __linux__
+	iflagset = 1;
+#endif
+	dfprintf(__LINE__,__FILE__,DEBUGINIT,"\33[1;32m __linux__ is %s\33[0m\n", isset[iflagset]);
+	iflagset = 0;
+#ifdef HAVE_LIBDL
+	iflagset = 1;
+#endif
+	dfprintf(__LINE__,__FILE__,DEBUGINIT,"\33[1;32m HAVE_LIBDL is %s\33[0m\n", isset[iflagset]);
+
+#if __linux__ && HAVE_LIBDL
+	if (nvml_lib) {
+		dfprintf(__LINE__,__FILE__,DEBUGINIT,"\33[1;32m nvml_lib is set... returning from nvidia_probe\33[0m\n");
 		return;
+	}
+
+	if (!(nvml_lib = dlopen("libnvidia-ml.so", RTLD_LAZY|RTLD_GLOBAL))) {
+		dfprintf(__LINE__,__FILE__,TRACE,"\33[1;32m/////// ERROR : libnvidia-ml.so dlopen failed... returning from nvidia_probe\33[0m\n");
+		return;
+	}
 
 	nvmlInit = (NVMLINIT) dlsym(nvml_lib, "nvmlInit");
 	nvmlShutdown = (NVMLSHUTDOWN) dlsym(nvml_lib, "nvmlShutdown");
@@ -140,7 +161,12 @@ void nvidia_probe(void)
 	//nvmlUnitGetCount = (NVMLUNITGETCOUNT) dlsym(nvml_lib, "nvmlUnitGetCount");
 	nvmlDeviceGetCurrPcieLinkWidth = (NVMLDEVICEGETCURRPCIELINKWIDTH) dlsym(nvml_lib, "nvmlDeviceGetCurrPcieLinkWidth");
 	nvmlDeviceGetMaxPcieLinkWidth = (NVMLDEVICEGETMAXPCIELINKWIDTH) dlsym(nvml_lib, "nvmlDeviceGetMaxPcieLinkWidth");
-	nvmlInit();
+	if ( ( nvmlRet = nvmlInit() ) == NVML_SUCCESS ) return;
+	if ( nvmlRet == NVML_ERROR_DRIVER_NOT_LOADED ) fprintf(stderr,"nvmlInit error : NVIDIA driver is not running\n");
+	if ( nvmlRet == NVML_ERROR_NO_PERMISSION ) fprintf(stderr,"nvmlInit error : NVML does not have permission to talk to the NVIDIA driver\n");
+	if ( nvmlRet == NVML_ERROR_UNKNOWN ) fprintf(stderr,"nvmlInit error : unexpected NVML or NVIDIA driver error\n");
+	return;
+	
 #endif
 }
 
@@ -265,33 +291,64 @@ void nvidia_get_temp(int nvml_id, int *temp, int *fanspeed, int *util,
 	nvmlUtilization_t s_util;
 	nvmlDevice_t dev;
 	unsigned int value;
+	nvmlReturn_t nvlmRet;
 
-	if (nvmlDeviceGetHandleByIndex(nvml_id, &dev) != NVML_SUCCESS) {
+	if ( ( nvlmRet = nvmlDeviceGetHandleByIndex(nvml_id, &dev) ) != NVML_SUCCESS) {
 		*temp = *fanspeed = *util = *cl = *ml = -1;
+		if ( nvlmRet == NVML_ERROR_UNINITIALIZED ) fprintf(stderr,"nvmlDeviceGetHandleByIndex error: the library has not been successfully initialized\n");
+		if ( nvlmRet == NVML_ERROR_INVALID_ARGUMENT ) fprintf(stderr,"nvmlDeviceGetHandleByIndex error: index is invalid or device is NULL\n");
+		if ( nvlmRet == NVML_ERROR_UNKNOWN ) fprintf(stderr,"nvmlDeviceGetHandleByIndex error: unexpected NVML or NVIDIA driver error\n");
 		return;
-	}
+	} 
 
-	if (nvmlDeviceGetTemperature(dev, NVML_TEMPERATURE_GPU, &value) == NVML_SUCCESS)
+	if ( ( nvlmRet = nvmlDeviceGetTemperature(dev, NVML_TEMPERATURE_GPU, &value) ) == NVML_SUCCESS)
 		*temp = value;
-	else
+	else {
 		*temp = -1;
-	if (nvmlDeviceGetFanSpeed(dev, &value) == NVML_SUCCESS)
+		if ( nvlmRet == NVML_ERROR_UNINITIALIZED ) fprintf(stderr,"nvmlDeviceGetTemperature error: the library has not been successfully initialized\n");
+		if ( nvlmRet == NVML_ERROR_INVALID_ARGUMENT ) fprintf(stderr,"nvmlDeviceGetTemperature error: device is invalid, sensorType is invalid or temp is NULL\n");
+		if ( nvlmRet == NVML_ERROR_NOT_SUPPORTED ) fprintf(stderr,"nvmlDeviceGetTemperature error: the device does not have the specified sensor\n");
+		if ( nvlmRet == NVML_ERROR_UNKNOWN ) fprintf(stderr,"nvmlDeviceGetTemperature error: unexpected NVML or NVIDIA driver error\n");
+	}
+	if ( ( nvlmRet = nvmlDeviceGetFanSpeed(dev, &value) ) == NVML_SUCCESS)
 		*fanspeed = value;
-	else
+	else {
 		*fanspeed = -1;
-	if (nvmlDeviceGetUtilizationRates(dev, &s_util) == NVML_SUCCESS)
+		if ( nvlmRet == NVML_ERROR_UNINITIALIZED ) fprintf(stderr,"nvmlDeviceGetFanSpeed error: the library has not been successfully initialized\n");
+		if ( nvlmRet == NVML_ERROR_INVALID_ARGUMENT ) fprintf(stderr,"nvmlDeviceGetFanSpeed error: device is invalid or speed is NULL\n");
+		if ( nvlmRet == NVML_ERROR_NOT_SUPPORTED ) fprintf(stderr,"nvmlDeviceGetFanSpeed error: the device does not have a fan\n");
+		if ( nvlmRet == NVML_ERROR_UNKNOWN ) fprintf(stderr,"nvmlDeviceGetFanSpeed error: unexpected NVML or NVIDIA driver error\n");
+	}
+	if ( ( nvlmRet = nvmlDeviceGetUtilizationRates(dev, &s_util) ) == NVML_SUCCESS)
 		*util = s_util.gpu;
-	else
+	else {
 		*util = -1;
-	if (nvmlDeviceGetMaxPcieLinkWidth(dev, &value) == NVML_SUCCESS)
+		if ( nvlmRet == NVML_ERROR_UNINITIALIZED ) fprintf(stderr,"nvmlDeviceGetUtilizationRates error: the library has not been successfully initialized\n");
+		if ( nvlmRet == NVML_ERROR_INVALID_ARGUMENT ) fprintf(stderr,"nvmlDeviceGetUtilizationRates error: device is invalid or utilization is NULL\n");
+		if ( nvlmRet == NVML_ERROR_NOT_SUPPORTED ) fprintf(stderr,"nvmlDeviceGetUtilizationRates error: the device does not support this feature\n");
+		if ( nvlmRet == NVML_ERROR_UNKNOWN ) fprintf(stderr,"nvmlDeviceGetUtilizationRates error: unexpected NVML or NVIDIA driver error\n");
+	}
+	if ( ( nvlmRet = nvmlDeviceGetMaxPcieLinkWidth(dev, &value) ) == NVML_SUCCESS)
 		*ml = value;
-	if (nvmlDeviceGetCurrPcieLinkWidth(dev, &value) == NVML_SUCCESS)
+	else {
+		if ( nvlmRet == NVML_ERROR_UNINITIALIZED ) fprintf(stderr,"nvmlDeviceGetMaxPcieLinkWidth error: the library has not been successfully initialized\n");
+		if ( nvlmRet == NVML_ERROR_INVALID_ARGUMENT ) fprintf(stderr,"nvmlDeviceGetMaxPcieLinkWidth error: device is invalid or maxLinkWidth is null\n");
+		if ( nvlmRet == NVML_ERROR_NOT_SUPPORTED ) fprintf(stderr,"nvmlDeviceGetMaxPcieLinkWidth error: PCIe link information is not available\n");
+		if ( nvlmRet == NVML_ERROR_UNKNOWN ) fprintf(stderr,"nvmlDeviceGetMaxPcieLinkWidth error: unexpected NVML or NVIDIA driver error\n");
+	}
+	if ( ( nvlmRet = nvmlDeviceGetCurrPcieLinkWidth(dev, &value) ) == NVML_SUCCESS)
 		*cl = value;
-	else
+	else {
 		*cl = *ml;
+		if ( nvlmRet == NVML_ERROR_UNINITIALIZED ) fprintf(stderr,"nvmlDeviceGetCurrPcieLinkWidth error: the library has not been successfully initialized\n");
+		if ( nvlmRet == NVML_ERROR_INVALID_ARGUMENT ) fprintf(stderr,"nvmlDeviceGetCurrPcieLinkWidth error: device is invalid or currLinkWidth is null\n");
+		if ( nvlmRet == NVML_ERROR_NOT_SUPPORTED ) fprintf(stderr,"nvmlDeviceGetCurrPcieLinkWidth error: PCIe link information is not available\n");
+		if ( nvlmRet == NVML_ERROR_UNKNOWN ) fprintf(stderr,"nvmlDeviceGetCurrPcieLinkWidth error: unexpected NVML or NVIDIA driver error\n");
+	}
 	if (*ml < *cl)
 		*ml = *cl;
 #endif /* __linux__ && HAVE_LIBDL */
+	return;
 }
 
 #if HAVE_LIBDL
@@ -463,6 +520,8 @@ void gpu_check_temp(void)
 
 	if (gpu_temp_limit < 0)
 		return;
+
+	if (gpu_temp_limit == 0) gpu_temp_limit = 79;	
 
 	for (i = 0; i < MAX_GPU_DEVICES && gpu_device_list[i] != -1; i++)
 	if (dev_get_temp[gpu_device_list[i]]) {

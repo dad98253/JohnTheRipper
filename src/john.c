@@ -144,6 +144,8 @@ static int john_omp_threads_new;
 #endif
 #endif
 #include "memdbg.h"
+#include "debug.h"
+
 
 #if CPU_DETECT
 extern int CPU_detect(void);
@@ -190,6 +192,7 @@ int john_main_process = 1;
 int john_child_count = 0;
 int *john_child_pids = NULL;
 #endif
+
 char *john_terminal_locale ="C";
 
 static int children_ok = 1;
@@ -202,6 +205,8 @@ static int exit_status = 0;
 static void john_register_one(struct fmt_main *format)
 {
 	static int override_disable = 0;
+ 
+	dfprintf(__LINE__,__FILE__,DBGREGISTER,"john_register_one called from %s: options.format -> %s\n",jtrunwind(1),debugstf(options.format));
 
 	if (options.format && !strcasecmp(options.format, "all")) {
 		override_disable = 1;
@@ -371,6 +376,8 @@ static void john_register_all(void)
 	struct fmt_main *selfs;
 #endif
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_register_all called from %s: options.format -> %s\n",jtrunwind(1),debugstf(options.format));
+
 	if (options.format) {
 /* The case of the expression for this format is VERY important to keep */
 		if (strncasecmp(options.format, "dynamic=", 8))
@@ -416,6 +423,12 @@ static void john_register_all(void)
 	john_register_one(&fmt_crypt);
 #endif
 
+#if HAVE_CUDA
+#ifdef DEBUG
+	debugdmpfmt_main2(TRACEJOHNINIT,"", &fmt_cuda_cryptsha512, "fmt_cuda_cryptsha512");
+#endif
+#endif
+
 	if (!fmt_list) {
 		if (john_main_process)
 		fprintf(stderr, "Unknown ciphertext format name requested\n");
@@ -426,6 +439,8 @@ static void john_register_all(void)
 static void john_log_format(void)
 {
 	int min_chunk, chunk;
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOG,"john_log_format: called\n");
 
 	/* make sure the format is properly initialized */
 #if HAVE_OPENCL
@@ -454,11 +469,17 @@ static void john_log_format(void)
 			"tried in chunks of %d",
 			min_chunk > 1 ? "will" : "may",
 			chunk);
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOG,"john_log_format: done\n");
+
 }
 
 #ifdef _OPENMP
 static void john_omp_init(void)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_omp_init: called\n");
+
 	john_omp_threads_new = omp_get_max_threads();
 	if (!john_omp_threads_orig)
 		john_omp_threads_orig = john_omp_threads_new;
@@ -611,6 +632,8 @@ static void john_fork(void)
 	int i, pid;
 	int *pids;
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_fork: called\n");
+
 	fflush(stdout);
 	fflush(stderr);
 
@@ -708,6 +731,9 @@ static void john_fork(void)
 #if HAVE_MPI
 static void john_set_mpi(void)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_set_mpi: called\n");
+
 	options.node_min += mpi_id;
 	options.node_max = options.node_min;
 
@@ -812,6 +838,8 @@ static char *john_loaded_counts(void)
 	static char s_loaded_counts[80];
 	char nbuf[24];
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_loaded_counts: called\n");
+
 	if (database.password_count == 1)
 		return "1 password hash";
 
@@ -827,6 +855,8 @@ static char *john_loaded_counts(void)
 static void john_load_conf(void)
 {
 	int internal, target;
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load_conf: called\n");
 
 	if (!(options.flags & FLG_VERBOSITY)) {
 		options.verbosity = cfg_get_int(SECTION_OPTIONS, NULL,
@@ -926,6 +956,9 @@ static void john_load_conf(void)
 
 static void john_load_conf_db(void)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load_conf_db: called\n");
+
 	if (options.flags & FLG_STDOUT) {
 		/* john.conf alternative for --internal-codepage */
 		if (!options.internal_cp &&
@@ -1005,6 +1038,8 @@ static void load_extra_pots(struct db_main *db, void (*process_file)(struct db_m
 	struct cfg_list *list;
 	struct cfg_line *line;
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"load_extra_pots: called\n");
+
 	if ((list = cfg_get_list("List.Extra:", "Potfiles")))
 	if ((line = list->head))
 	do {
@@ -1082,6 +1117,10 @@ static void john_load(void)
 #ifndef _MSC_VER
 	umask(077);
 #endif
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: options.flags    = 0x%08x\n",options.flags);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_EXTERNAL_CHK = 0x%08x\n",FLG_EXTERNAL_CHK);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_MAKECHR_CHK  = 0x%08x\n",FLG_MAKECHR_CHK);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_PASSWD       = 0x%08x\n",FLG_PASSWD);
 
 	if (options.flags & FLG_EXTERNAL_CHK)
 		ext_init(options.external, NULL);
@@ -1131,6 +1170,11 @@ static void john_load(void)
 	if (options.flags & FLG_PASSWD) {
 		int total;
 		int i = 0;
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_SHOW_CHK     = 0x%08x\n",FLG_SHOW_CHK);
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_SINGLE_CHK   = 0x%08x\n",FLG_SINGLE_CHK);
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_BATCH_CHK    = 0x%08x\n",FLG_BATCH_CHK);
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_CRACKING_CHK = 0x%08x\n",FLG_CRACKING_CHK);
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_PWD_REQ      = 0x%08x\n",FLG_PWD_REQ);
 
 		if (options.flags & FLG_SHOW_CHK) {
 			options.loader.flags |= DB_CRACKED;
@@ -1168,6 +1212,7 @@ static void john_load(void)
 
 			return;
 		}
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: status.pass = %i\n",status.pass);
 
 		if (options.flags & (FLG_SINGLE_CHK | FLG_BATCH_CHK) &&
 		    status.pass <= 1)
@@ -1180,6 +1225,7 @@ static void john_load(void)
 
 		if (mem_saving_level >= 2)
 			options.max_wordfile_memory = 1;
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: calling ldr_init_database\n");
 
 		ldr_init_database(&database, &options.loader);
 
@@ -1188,16 +1234,21 @@ static void john_load(void)
 			ldr_load_pw_file(&database, current->data);
 		} while ((current = current->next));
 
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: calling john_load_conf_db\n");
 		/* Process configuration options that depend on db/format */
 		john_load_conf_db();
 
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: database.password_count = %i\n", database.password_count);
+
 		if ((options.flags & FLG_CRACKING_CHK) &&
 		    database.password_count) {
+			dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: calling log_init\n");
 			log_init(LOG_NAME, NULL, options.session);
 			if (status_restored_time)
 				log_event("Continuing an interrupted session");
 			else
 				log_event("Starting a new session");
+			dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: calling log_event\n");
 			log_event("Loaded a total of %s", john_loaded_counts());
 			/* make sure the format is properly initialized */
 #if HAVE_OPENCL
@@ -1205,6 +1256,9 @@ static void john_load(void)
 			      strstr(database.format->params.label, "-opencl")))
 #endif
 			fmt_init(database.format);
+
+			dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: calling fmt_init\n");
+
 			if (john_main_process)
 			printf("Loaded %s (%s%s%s [%s])\n",
 			    john_loaded_counts(),
@@ -1219,7 +1273,9 @@ static void john_load(void)
 		}
 
 		total = database.password_count;
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: calling ldr_load_pot_file\n");
 		ldr_load_pot_file(&database, options.activepot);
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: calling load_extra_pots\n");
 
 /*
  * Load optional extra (read-only) pot files. If an entry is a directory,
@@ -1227,10 +1283,17 @@ static void john_load(void)
  */
 		load_extra_pots(&database, &ldr_load_pot_file);
 
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: calling ldr_fix_database\n");
+
 		ldr_fix_database(&database);
+
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: database.password_count = %i, total = %i\n", database.password_count,total);
 
 		if (!database.password_count) {
 			log_discard();
+
+			dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: \"No password hashes %s (see FAQ)\"\n", total ? "left to crack" : "loaded");
+
 			if (john_main_process)
 			printf("No password hashes %s (see FAQ)\n",
 			    total ? "left to crack" : "loaded");
@@ -1243,6 +1306,7 @@ static void john_load(void)
 			printf("Remaining %s\n", john_loaded_counts());
 		}
 
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FMT_TUNABLE_COSTS = %i\n",FMT_TUNABLE_COSTS);
 		for ( ; i < FMT_TUNABLE_COSTS &&
 			      database.format->methods.tunable_cost_value[i] != NULL; i++) {
 			if (database.min_cost[i] < database.max_cost[i]) {
@@ -1268,6 +1332,7 @@ static void john_load(void)
 				       database.min_cost[i]);
 			}
 		}
+		dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: database.salts = 0x%08x\n",database.salts);
 		if ((options.flags & FLG_PWD_REQ) && !database.salts) exit(0);
 
 		if (options.regen_lost_salts)
@@ -1280,6 +1345,10 @@ static void john_load(void)
 	 * so it's not trivial. Works like a champ though, except with
 	 * DEScrypt. I have no idea why, maybe because LM and DES share code?
 	 */
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: FLG_LOOPBACK_CHK = 0x%08x\n",FLG_LOOPBACK_CHK);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: database.format = 0x%08x\n",database.format);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: &fmt_LM         = 0x%08x\n",&fmt_LM);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNLOAD,"john_load: &fmt_DES        = 0x%08x\n",&fmt_DES);
 	if (options.flags & FLG_LOOPBACK_CHK &&
 	    database.format != &fmt_LM && database.format != &fmt_DES) {
 		struct db_main loop_db;
@@ -1449,6 +1518,8 @@ static void john_init(char *name, int argc, char **argv)
 	}
 #endif
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: calling status_init(NULL, 1)\n");
+
 	status_init(NULL, 1);
 	if (argc < 2 ||
             (argc == 2 &&
@@ -1461,6 +1532,11 @@ static void john_init(char *name, int argc, char **argv)
 	}
 	opt_init(name, argc, argv, show_usage);
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: calling load_debug...\n");
+#ifdef DEBUG
+	load_debug();
+#endif
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: debug loaded and ready...\n");
 	if (options.listconf)
 		listconf_parse_early();
 
@@ -1492,9 +1568,16 @@ static void john_init(char *name, int argc, char **argv)
 	/* Process configuration options that depend on cfg_init() */
 	john_load_conf();
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: john_load_conf done\n");
+
 #ifdef _OPENMP
 	john_omp_maybe_adjust_or_fallback(argv);
 #endif
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: options.flags = 0x%08x\n",options.flags);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: FLG_STDOUT    = 0x%08x\n",FLG_STDOUT);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: FLG_SHOW_CHK  = 0x%08x\n",FLG_SHOW_CHK);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: make_check    = 0x%08x\n",make_check);
+
 	if(!(options.flags & FLG_STDOUT))
 		john_register_all(); /* maybe restricted to one format by options */
 	common_init();
@@ -1511,7 +1594,11 @@ static void john_init(char *name, int argc, char **argv)
 #endif
 	}
 
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: calling john_load\n");
+
 	john_load();
+
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: john_load done\n");
 
 	/* Init the Unicode system */
 	if (options.internal_cp) {
@@ -1591,12 +1678,22 @@ static void john_init(char *name, int argc, char **argv)
 		log_event("- Rules/masks using %s",
 		          cp_id2name(options.internal_cp));
 	}
+	dfprintf(__LINE__,__FILE__,TRACEJOHNINIT,"john_init: last statement - return??\n");
 }
 
 static void john_run(void)
 {
 	struct stat trigger_stat;
 	int trigger_reset = 0;
+	dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: options.flags      = 0x%08x\n",options.flags);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_TEST_CHK       = 0x%08x\n",FLG_TEST_CHK);
+#ifdef HAVE_FUZZ
+	dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_FUZZ_CHK       = 0x%08x\n",FLG_FUZZ_CHK);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_FUZZ_DUMP_CHK  = 0x%08x\n",FLG_FUZZ_DUMP_CHK);
+#endif
+	dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_MAKECHR_CHK    = 0x%08x\n",FLG_MAKECHR_CHK);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_CRACKING_CHK   = 0x%08x\n",FLG_CRACKING_CHK);
+	dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_STDOUT         = 0x%08x\n",FLG_STDOUT);
 
 	if (options.flags & FLG_TEST_CHK)
 		exit_status = benchmark_all() ? 1 : 0;
@@ -1614,6 +1711,8 @@ static void john_run(void)
 	if (options.flags & FLG_CRACKING_CHK) {
 		int remaining = database.password_count;
 
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: database.password_count = %i\n",remaining);
+
 		if (options.abort_file &&
 		    stat(path_expand(options.abort_file), &trigger_stat) == 0) {
 			if (john_main_process)
@@ -1626,9 +1725,17 @@ static void john_run(void)
 			struct db_main *test_db = 0;
 			char *where;
 
+			dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: calling ldr_init_test_db\n");
+
 			test_db = ldr_init_test_db(database.format,
 			                           &database);
+
+			dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: calling fmt_self_test\n");
+
 			where = fmt_self_test(database.format, test_db);
+
+			dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: calling ldr_free_test_db\n");
+
 			ldr_free_test_db(test_db);
 			if (where) {
 				fprintf(stderr, "Self test failed (%s)\n",
@@ -1636,8 +1743,14 @@ static void john_run(void)
 				error();
 			}
 			trigger_reset = 1;
+
+			dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: calling log_init\n");
+
 			log_init(LOG_NAME, options.activepot,
 			         options.session);
+
+			dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: calling status_init\n");
+
 			status_init(NULL, 1);
 			if (john_main_process) {
 				john_log_format();
@@ -1652,6 +1765,12 @@ static void john_run(void)
 				log_flush();
 			}
 		}
+
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: options.flags      = 0x%08x\n",options.flags);
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_STDIN_CHK      = 0x%08x -> %s\n",FLG_STDIN_CHK,debugstf( options.flags & FLG_STDIN_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_PIPE_CHK       = 0x%08x -> %s\n",FLG_PIPE_CHK,debugstf( options.flags & FLG_PIPE_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_KEEP_GUESSING  = 0x%08x -> %s\n",FLG_KEEP_GUESSING,debugstf( options.flags & FLG_KEEP_GUESSING));
+
 		tty_init(options.flags & (FLG_STDIN_CHK | FLG_PIPE_CHK));
 
 		if (john_main_process &&
@@ -1695,6 +1814,27 @@ static void john_run(void)
 				error();
 			}
 		}
+
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_MASK_CHK       = 0x%08x -> %s\n",FLG_MASK_CHK,debugstf( options.flags & FLG_MASK_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: trigger_reset               -> %s\n",debugstf(trigger_reset));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_SINGLE_CHK     = 0x%08x -> %s\n",FLG_SINGLE_CHK,debugstf( options.flags & FLG_SINGLE_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_WORDLIST_CHK   = 0x%08x -> %s\n",FLG_WORDLIST_CHK,debugstf( options.flags & FLG_WORDLIST_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_RULES          = 0x%08x -> %s\n",FLG_RULES,debugstf( options.flags & FLG_RULES));
+#if HAVE_LIBGMP || HAVE_INT128 || HAVE___INT128 || HAVE___INT128_T
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_PRINCE_CHK     = 0x%08x -> %s\n",FLG_PRINCE_CHK,debugstf( options.flags & FLG_PRINCE_CHK));
+#endif
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_INC_CHK        = 0x%08x -> %s\n",FLG_INC_CHK,debugstf( options.flags & FLG_INC_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_MKV_CHK        = 0x%08x -> %s\n",FLG_MKV_CHK,debugstf( options.flags & FLG_MKV_CHK));
+#if HAVE_REXGEN
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_REGEX_CHK      = 0x%08x -> %s\n",FLG_REGEX_CHK,debugstf( options.flags & FLG_REGEX_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_REGEX_STACKED  = 0x%08x -> %s\n",FLG_REGEX_STACKED,debugstf( options.flags & FLG_REGEX_STACKED));
+#endif
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_MASK_CHK       = 0x%08x -> %s\n",FLG_MASK_CHK,debugstf( options.flags & FLG_MASK_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_REGEX_STACKED  = 0x%08x -> %s\n",FLG_REGEX_STACKED,debugstf( options.flags & FLG_REGEX_STACKED));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_EXTERNAL_CHK   = 0x%08x -> %s\n",FLG_EXTERNAL_CHK,debugstf( options.flags & FLG_EXTERNAL_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_BATCH_CHK      = 0x%08x -> %s\n",FLG_BATCH_CHK,debugstf( options.flags & FLG_BATCH_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: FLG_MASK_CHK       = 0x%08x -> %s\n",FLG_MASK_CHK,debugstf( options.flags & FLG_MASK_CHK));
+		dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: options.fork                -> %s\n",debugstf(options.fork && john_main_process));
 
 		if (options.flags & FLG_MASK_CHK)
 			mask_init(&database, options.mask);
@@ -1778,10 +1918,14 @@ static void john_run(void)
 			    "the cracked passwords reliably\n", stderr);
 		}
 	}
+	dfprintf(__LINE__,__FILE__,TRACEJOHNRUN,"john_run: done\n");
 }
 
 static void john_done(void)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACE,"john_done: called\n");
+
 	if ((options.flags & (FLG_CRACKING_CHK | FLG_STDOUT)) ==
 	    FLG_CRACKING_CHK) {
 		if (event_abort) {
@@ -1833,6 +1977,13 @@ int main(int argc, char **argv)
 {
 	char *name;
 	unsigned int time;
+
+#ifdef DEBUG
+/*
+ * initialize the debug print routine
+ */
+	if(debug_init()) return(-99);
+#endif
 
 #ifdef TEST_MEMDBG_LOGIC
 	int i,j;
@@ -1986,6 +2137,13 @@ int main(int argc, char **argv)
 
 	john_run();
 	john_done();
+
+#ifdef DEBUG
+/*
+ * clean up any data left over from the debug print routine
+ */
+	debug_close();
+#endif
 
 	MEMDBG_PROGRAM_EXIT_CHECKS(stderr);
 

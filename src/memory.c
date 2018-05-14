@@ -179,6 +179,11 @@ void *mem_alloc_tiny_func(size_t size, size_t align
 				bufree -= need;
 				buffer = p + size;
 #if defined(DEBUG) || defined(MEMDBG)
+#if defined(DEBUG)
+				if (((size_t)p & ((mask << 1) + 1)) == 0) {
+					fprintf(stderr,"mem_alloc_tiny_func: p += align adjustment -> true\n");
+				}
+#endif
 				/* Ensure alignment is no better than requested */
 				if (((size_t)p & ((mask << 1) + 1)) == 0)
 					p += align;

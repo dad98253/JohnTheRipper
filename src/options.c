@@ -48,6 +48,8 @@
 #ifdef HAVE_OPENCL
 #include "common-opencl.h"
 #endif
+#include "debug.h"    /* note: #ifdef DEBUG at top of debug.h causes
+                       * nothing to be included for non-debug compiles*/
 #if HAVE_LIBGMP || HAVE_INT128 || HAVE___INT128 || HAVE___INT128_T
 #include "prince.h"
 #endif
@@ -256,6 +258,29 @@ static struct opt_entry opt_list[] = {
 	{"stress-test", FLG_LOOPTEST | FLG_TEST_SET, FLG_TEST_CHK,
 		0, ~FLG_TEST_SET & ~FLG_FORMAT & ~FLG_SAVEMEM & ~FLG_DYNFMT &
 		~OPT_REQ_PARAM & ~FLG_NOLOG, "%d", &benchmark_time},
+#if defined DEBUG
+	{"debug-level", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+                                  "%d", &options.debug_level},
+	{"debug-flags", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+		OPT_FMT_ADD_LIST_MULTI, &options.debug_flags},
+	{"debug-server", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+		OPT_FMT_STR_ALLOC, &options.debug_server_name},
+	{"debug-port", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+                                  "%d", &options.degug_port_number},
+	{"debug-filename", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+		OPT_FMT_STR_ALLOC, &options.debug_filename},
+	{"debug-device", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+		OPT_FMT_STR_ALLOC, &options.debug_device},
+	{"debug-color", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+                                  "%d", &options.debug_color_flag},
+	{"debug-clrscr", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+                                  "%d", &options.debug_clear_screen},
+	{"debug-mask", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+		OPT_FMT_ADD_LIST_MULTI, &options.debug_mask_messages},
+	{"debug-force", FLG_NONE, 0, 0, OPT_REQ_PARAM,
+		OPT_FMT_ADD_LIST_MULTI, &options.debug_display_messages},
+#endif
+
 	{NULL}
 };
 
@@ -345,12 +370,36 @@ JOHN_USAGE_FORK \
 "--device=N                 set CUDA device (see --list=cuda-devices)\n"
 #endif
 
+#ifdef DEBUG
+#define JOHN_USAGE_DEBUG \
+"--debug-level=N            set debug output verbosity (if =0, then no debug output,\n" \
+"                           if =1, then minimum debug output, if =2, then verbose\n" \
+"                           debug output, if =3, then very verbose debug output)\n" \
+"--debug-flags=N[,..]       set debug flag(s), see --list=debug-flags\n" \
+"--debug-server=SERVER      set debug ouput tcp server name or server ip address (used\n" \
+"                           only for output device type TCPPORT)\n" \
+"--debug-port=N             set debug ouput tcp port number (used only for output\n" \
+"                           device type TCPPORT)\n" \
+"--debug-filename=FILE      set debug output file name (used only for output device\n" \
+"                           type FILEOUTPUT)\n" \
+"--debug-device=DEVICE      set debug output device, see --list=debug-device\n" \
+"--debug-color={0,1}        set color output debug option (on=1, off=0)\n" \
+"--debug-clrscr={0,1}       set clear debug screen at start of run option (on=1, off=0)\n" \
+"--debug-mask=N[,..]        set debug mask(s) to ignore certain messages, see\n" \
+"                           --list=debug-mask\n" \
+"--debug-force=N[,..]       set debug force(s) to display messages that would otherwise\n" \
+"                           be ignored (see --list=debug-mask)\n"
+#endif
+
 static void print_usage(char *name)
 {
 	if (!john_main_process)
 		exit(0);
 
 	printf(JOHN_USAGE, name);
+#ifdef DEBUG
+	printf("%s", JOHN_USAGE_DEBUG);
+#endif
 #if defined(HAVE_OPENCL) || defined(HAVE_CUDA)
 	printf("%s", JOHN_USAGE_GPU);
 #endif
@@ -435,6 +484,37 @@ void opt_print_hidden_usage(void)
 	puts("");
 }
 
+#ifdef DEBUG
+void debug_flag_list(void)
+{
+	int i;
+	i=0;
+	while (strlen(debug_flag[i]) != 0) {
+		if(i != 0) printf(" %s\n",debug_flag[i]);
+		i++;
+	}
+	printf("\n");
+	return;
+}
+
+void debug_device_list(void)
+{
+	int i;
+	for (i = 0 ; i < DIMDEBUGDEVICES ; i++) {
+		printf(" %s\n",debug_devices[i]);
+	}
+	printf("\n");
+	return;
+}
+
+void debug_mask_list(void)
+{
+	printf("(none - option not used in this version of the program)\n");
+	return;
+}
+
+#endif   //   fi def DEBUG
+
 void opt_init(char *name, int argc, char **argv, int show_usage)
 {
 	if (show_usage)
@@ -463,6 +543,12 @@ void opt_init(char *name, int argc, char **argv, int show_usage)
 	list_init(&options.loader.shells);
 #if defined(HAVE_OPENCL) || defined(HAVE_CUDA)
 	list_init(&options.gpu_devices);
+#endif
+#if defined DEBUG
+	list_init(&options.debug_flags);
+	list_init(&options.debug_mask_messages);
+	list_init(&options.debug_display_messages);
+
 #endif
 
 	options.length = -1;
@@ -554,6 +640,12 @@ void opt_init(char *name, int argc, char **argv, int show_usage)
 	if (options.format && strcasestr(options.format, "opencl") &&
 	    (options.flags & FLG_FORK) && options.gpu_devices->count == 0) {
 		list_add(options.gpu_devices, "all");
+	}
+#endif
+#ifdef DEBUG
+	if ( !options.debug_level &&
+	    ( options.debug_flags->count == 0) ) {
+		list_add(options.debug_flags, "none");
 	}
 #endif
 

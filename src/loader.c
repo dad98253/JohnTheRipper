@@ -47,6 +47,7 @@
 #include "base64_convert.h"
 #include "md5.h"
 #include "memdbg.h"
+#include "debug.h"
 
 #ifdef HAVE_CRYPT
 extern struct fmt_main fmt_crypt;
@@ -109,6 +110,8 @@ int ldr_pot_source_cmp(const char *pot_entry, const char *full_source) {
 	unsigned char srcH[16], potH[16];
 	const char *p;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_pot_source_cmp called from %s\n",jtrunwind(1));
+
 	if (!strcmp(pot_entry, full_source))
 		return 0;
 	p = strstr(pot_entry, "$SOURCE_HASH$");
@@ -140,6 +143,8 @@ const char *ldr_pot_source(const char *full_source,
 	int len;
 	char *p = buffer;
 	unsigned char mbuf[16];
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_pot_source called from %s\n",jtrunwind(1));
 
 	if (strnlen(full_source, MAX_CIPHERTEXT_SIZE + 1) <= MAX_CIPHERTEXT_SIZE)
 		return full_source;
@@ -176,6 +181,8 @@ static void read_file(struct db_main *db, char *name, int flags,
 	FILE *file;
 	char line_buf[LINE_BUFFER_SIZE], *line, *ex_size_line;
 	int warn_enc;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"read_file called from %s\n",jtrunwind(1));
 
 	warn_enc = john_main_process && (options.target_enc != ASCII) &&
 		cfg_get_bool(SECTION_OPTIONS, NULL, "WarnEncoding", 0);
@@ -238,6 +245,9 @@ static void read_file(struct db_main *db, char *name, int flags,
 
 void ldr_init_database(struct db_main *db, struct db_options *db_options)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_database called from %s\n",jtrunwind(1));
+
 	db->loaded = 0;
 
 	db->real = db;
@@ -298,6 +308,8 @@ static void ldr_init_password_hash(struct db_main *db)
 	int size_num = PASSWORD_HASH_SIZE_FOR_LDR;
 	size_t size;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_password_hash called from %s\n",jtrunwind(1));
+
 	if (size_num >= 2 && mem_saving_level >= 2) {
 		size_num--;
 		if (mem_saving_level >= 3)
@@ -323,6 +335,8 @@ static char *ldr_get_field(char **ptr, char field_sep_char)
 	static char *last;
 	char *res, *pos;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_get_field called from %s\n",jtrunwind(1));
+
 	if (!*ptr) return last;
 
 	if ((pos = strchr(res = *ptr, field_sep_char))) {
@@ -343,6 +357,8 @@ static int ldr_check_list(struct list_main *list, char *s1, char *s2)
 {
 	struct list_entry *current;
 	char *data;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_check_list called from %s\n",jtrunwind(1));
 
 	if (!(current = list->head) || ldr_loading_testdb)
 		return 0;
@@ -378,6 +394,9 @@ static MAYBE_INLINE int ldr_check_shells(struct list_main *list, char *shell)
 
 static void ldr_set_encoding(struct fmt_main *format)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_set_encoding called from %s\n",jtrunwind(1));
+
 	if ((!options.target_enc || options.default_target_enc) &&
 	    !options.internal_cp) {
 		if (!strcasecmp(format->params.label, "LM") ||
@@ -441,6 +460,8 @@ static int ldr_split_line(char **login, char **ciphertext,
 	struct fmt_main *alt;
 	char *fields[10], *gid, *shell;
 	int i, retval;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_split_line called from %s\n",jtrunwind(1));
 
 	fields[0] = *login = ldr_get_field(&line, db_opts->field_sep_char);
 	fields[1] = *ciphertext = ldr_get_field(&line, db_opts->field_sep_char);
@@ -876,6 +897,8 @@ static struct list_main *ldr_init_words(char *login, char *gecos, char *home)
 	struct list_main *words;
 	char *pos;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_words called from %s\n",jtrunwind(1));
+
 	list_init(&words);
 
 	if (*login && login != no_username && !single_skip_login)
@@ -910,6 +933,8 @@ static void ldr_load_pw_line(struct db_main *db, char *line)
 	struct list_main *words;
 	size_t pw_size;
 	int i;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_load_pw_line called from %s\n",jtrunwind(1));
 
 #ifdef HAVE_FUZZ
 	char *line_sb;
@@ -1108,6 +1133,9 @@ static void ldr_load_pw_line(struct db_main *db, char *line)
 
 void ldr_load_pw_file(struct db_main *db, char *name)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_load_pw_file called from %s\n",jtrunwind(1));
+
 	pristine_gecos = cfg_get_bool(SECTION_OPTIONS, NULL,
 	        "PristineGecos", 0);
 	single_skip_login = cfg_get_bool(SECTION_OPTIONS, NULL,
@@ -1119,6 +1147,8 @@ void ldr_load_pw_file(struct db_main *db, char *name)
 int ldr_trunc_valid(char *ciphertext, struct fmt_main *format)
 {
 	int i;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_trunc_valid called from %s\n",jtrunwind(1));
 
 	if (!format->params.signature[0] || !ldr_in_pot)
 		goto plain_valid;
@@ -1144,6 +1174,8 @@ static void ldr_load_pot_line(struct db_main *db, char *line)
 	int hash;
 	int need_removal;
 	struct db_password *current;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_load_pot_line called from %s\n",jtrunwind(1));
 
 	ciphertext = ldr_get_field(&line, db->options->field_sep_char);
 	if (ldr_trunc_valid(ciphertext, format) != 1) return;
@@ -1185,25 +1217,40 @@ struct db_main *ldr_init_test_db(struct fmt_main *format, struct db_main *real)
 	struct fmt_tests *current;
 	extern volatile int bench_running;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: called, format->params.tests = %p\n", format->params.tests);
+
 	if (!(current = format->params.tests))
 		return NULL;
-
 	memcpy(&fake_list, format, sizeof(struct fmt_main));
 	fake_list.next = NULL;
 	fmt_list = &fake_list;
 
 	testdb = mem_alloc(sizeof(struct db_main));
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: calling fmt_init\n");
+
 	fmt_init(format);
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: calling dyna_salt_init\n");
+
 	dyna_salt_init(format);
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: calling ldr_init_database\n");
+
 	ldr_init_database(testdb, &options.loader);
 	testdb->options->field_sep_char = ':';
 	testdb->real = real;
 	testdb->format = format;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: calling ldr_init_password_hash\n");
+
 	ldr_init_password_hash(testdb);
 
 	ldr_loading_testdb = 1;
 	bench_running++;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: current->ciphertext = 0x%0x\n",current->ciphertext);
+
 	while (current->ciphertext) {
 		char *ex_len_line = NULL, _line[LINE_BUFFER_SIZE], *line = _line;
 		int i, pos = 0;
@@ -1226,14 +1273,23 @@ struct db_main *ldr_init_test_db(struct fmt_main *format, struct db_main *real)
 				               current->fields[i],
 				               testdb->options->field_sep_char);
 
+		dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: calling ldr_load_pw_line\n");
+
 		ldr_load_pw_line(testdb, line);
 		current++;
+
+		dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: current->ciphertext = 0x%0x\n",current->ciphertext);
+
 		MEM_FREE(ex_len_line);
 	}
 	bench_running--;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: calling ldr_fix_database\n");
+
 	ldr_fix_database(testdb);
 	ldr_loading_testdb = 0;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_test_db: Loaded %d hashes with %d different salts to test db from test vectors\n", testdb->password_count, testdb->salt_count);
 
 	if (options.verbosity == VERB_MAX)
 		fprintf(stderr,
@@ -1246,6 +1302,9 @@ struct db_main *ldr_init_test_db(struct fmt_main *format, struct db_main *real)
 
 void ldr_free_test_db(struct db_main *db)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_free_test_db called from %s\n",jtrunwind(1));
+
 	if (db) {
 		if (db->format &&
 		    (db->format->params.flags & FMT_DYNA_SALT) == FMT_DYNA_SALT)
@@ -1264,6 +1323,9 @@ void ldr_free_test_db(struct db_main *db)
 
 void ldr_load_pot_file(struct db_main *db, char *name)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_load_pot_file called from %s\n",jtrunwind(1));
+
 	if (db->format && !(db->format->params.flags & FMT_NOT_EXACT)) {
 		ldr_in_pot = 1;
 		read_file(db, name, RF_ALLOW_MISSING, ldr_load_pot_line);
@@ -1285,6 +1347,8 @@ static void ldr_init_salts(struct db_main *db)
 	struct db_salt **tail, *current;
 	int hash, ctr = 0;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_salts called from %s\n",jtrunwind(1));
+
 	for (hash = 0, tail = &db->salts; hash < SALT_HASH_SIZE; hash++)
 	if ((current = db->salt_hash[hash])) {
 		*tail = current;
@@ -1305,6 +1369,8 @@ static void ldr_init_sqid(struct db_main *db)
 {
 	struct db_salt *current;
 	int ctr = 0;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_sqid called from %s\n",jtrunwind(1));
 
 	if ((current = db->salts))
 	do {
@@ -1406,6 +1472,9 @@ static void ldr_sort_salts(struct db_main *db)
 #else
 	salt_cmp_t ar[100];  /* array is easier to debug in VC */
 #endif
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_sort_salts called from %s\n",jtrunwind(1));
+
 	if (db->salt_count < 2)
 		return;
 
@@ -1483,6 +1552,8 @@ static void ldr_show_left(struct db_main *db, struct db_password *pw)
 	char *pw_source = db->format->methods.source(pw->source, pw->binary);
 	char *login = (db->options->flags & DB_LOGIN) ? pw->login : "?";
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_show_left called from %s\n",jtrunwind(1));
+
 #ifndef DYNAMIC_DISABLED
 	/* Note for salted dynamic, we 'may' need to fix up the salts to
 	 * make them properly usable. */
@@ -1514,6 +1585,8 @@ static void ldr_remove_marked(struct db_main *db)
 {
 	struct db_salt *current_salt, *last_salt;
 	struct db_password *current_pw, *last_pw;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_remove_marked called from %s\n",jtrunwind(1));
 
 	if (!(db->options->flags & DB_NEED_REMOVAL))
 		return;
@@ -1561,6 +1634,8 @@ static void ldr_filter_salts(struct db_main *db)
 	struct db_salt *current, *last;
 	int min = db->options->min_pps;
 	int max = db->options->max_pps;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_filter_salts called from %s\n",jtrunwind(1));
 
 	if (!max) {
 		if (!min) return;
@@ -1635,6 +1710,8 @@ static void ldr_init_hash_for_salt(struct db_main *db, struct db_salt *salt)
 	size_t bitmap_size, hash_size;
 	int hash;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_hash_for_salt called from %s, (salt->hash_size < 0) -> %s\n",jtrunwind(1),debugstf(salt->hash_size < 0));
+
 	if (salt->hash_size < 0) {
 		salt->count = 0;
 		if ((current = salt->list))
@@ -1690,6 +1767,8 @@ static void ldr_init_hash(struct db_main *db)
 {
 	struct db_salt *current;
 	int threshold, size;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_init_hash called from %s\n",jtrunwind(1));
 
 	threshold = password_hash_thresholds[0];
 	if (db->format && (db->format->params.flags & FMT_BS)) {
@@ -1762,6 +1841,8 @@ void ldr_fix_database(struct db_main *db)
 {
 	int total = db->password_count;
 
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_fix_database called from %s\n",jtrunwind(1));
+
 	ldr_init_salts(db);
 	MEM_FREE(db->password_hash);
 	if (!db->format ||
@@ -1799,6 +1880,8 @@ static int ldr_cracked_hash(char *ciphertext)
 	unsigned char *p = (unsigned char *)ciphertext;
 	unsigned char tmp[POT_BUFFER_CT_TRIM_SIZE + 1];
 	int len;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_cracked_hash called from %s\n",jtrunwind(1));
 
 	/* these checks handle .pot chopped plaintext */
 	len = strnlen(ciphertext, MAX_CIPHERTEXT_SIZE);
@@ -1859,6 +1942,8 @@ static void ldr_show_pot_line(struct db_main *db, char *line)
 	char *ciphertext, *pos;
 	int hash;
 	struct db_cracked *current, *last;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_show_pot_line called from %s\n",jtrunwind(1));
 
 	ciphertext = ldr_get_field(&line, db->options->field_sep_char);
 
@@ -1960,6 +2045,8 @@ static void ldr_show_pw_line(struct db_main *db, char *line)
 	char *utf8login = NULL;
 	char joined[PLAINTEXT_BUFFER_SIZE + 1] = "";
 	size_t line_size = strlen(line) + 1;
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_show_pw_line called from %s\n",jtrunwind(1));
 
 	source = mem_alloc(line_size);
 	orig_line = mem_alloc(line_size);
@@ -2121,5 +2208,8 @@ free_and_return:
 
 void ldr_show_pw_file(struct db_main *db, char *name)
 {
+
+	dfprintf(__LINE__,__FILE__,TRACELOADER,"ldr_show_pw_file called from %s\n",jtrunwind(1));
+
 	read_file(db, name, RF_ALLOW_DIR, ldr_show_pw_line);
 }

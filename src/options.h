@@ -185,6 +185,16 @@
 #define FLG_PRINCE_MMAP			0x0100000000000000ULL
 #define FLG_RULES_ALLOW			0x0200000000000000ULL
 #define FLG_REGEX_STACKED		0x0400000000000000ULL
+/* debug flags, options.debug_flags[...] is set to the flag value */
+#define DBG_TRACE			0x1000000000000000ULL
+/* debug levels, options.debug_level is set to the level value, or 0
+ * (off) */
+#define DBG_UNINIT			-1
+#define DBG_NONE			0
+#define DBG_MINIMUM			1
+#define DBG_VERBOSE			2
+#define DBG_VERBOSEVERBOSE		3
+#define DBG_VERBOSEVERBOSEVERBOSE	4
 
 /*
  * Structure with option flags and all the parameters.
@@ -359,6 +369,19 @@ struct options_main {
 #endif
 #if defined(HAVE_OPENCL) || defined(HAVE_CUDA)
 	struct list_main *gpu_devices;
+#endif
+#ifdef DEBUG
+/* debug options */
+	unsigned int debug_level;
+	struct list_main *debug_flags;
+	char * debug_server_name;
+	unsigned int degug_port_number;
+	char * debug_filename;
+	char * debug_device;
+	unsigned int debug_color_flag;
+	unsigned int debug_clear_screen;
+	struct list_main *debug_mask_messages;
+	struct list_main *debug_display_messages;
 #endif
 /* -list=WHAT Get a config list (eg. a list of incremental modes available) */
 	char *listconf;

@@ -83,9 +83,16 @@ void cuda_init()
 
 void cuda_done(void)
 {
+	nvmlReturn_t nvmlRet;
 #if __linux__ && HAVE_LIBDL
-	if (nvml_lib)
-		nvmlShutdown();
+	if (nvml_lib) {
+		nvmlRet = nvmlShutdown();
+	}
+	if ( nvmlRet == NVML_SUCCESS ) return;
+	if ( nvmlRet == NVML_ERROR_UNINITIALIZED ) fprintf(stderr,"NVML shutdown error: the library was never successfully initialized\n");
+	if ( nvmlRet == NVML_ERROR_UNKNOWN ) fprintf(stderr,"unexpected NVML or NVIDIA driver error\n");
+	return;
+	
 #endif
 }
 

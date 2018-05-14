@@ -74,6 +74,11 @@ extern void cuda_device_list();
 #if HAVE_OPENCL
 #include "common-opencl.h"
 #endif
+#ifdef DEBUG
+extern void debug_flag_list();
+extern void debug_device_list();
+extern void debug_mask_list();
+#endif
 #include "version.h"
 #include "listconf.h" /* must be included after version.h */
 #include "memdbg.h"
@@ -338,6 +343,23 @@ void listconf_parse_early(void)
 	if (!strcasecmp(options.listconf, "cuda-devices"))
 	{
 		cuda_device_list();
+		exit(EXIT_SUCCESS);
+	}
+#endif
+#if DEBUG
+	if (!strcasecmp(options.listconf, "debug-flags"))
+	{
+		debug_flag_list();
+		exit(EXIT_SUCCESS);
+	}
+	if (!strcasecmp(options.listconf, "debug-device"))
+	{
+		debug_device_list();
+		exit(EXIT_SUCCESS);
+	}
+	if (!strcasecmp(options.listconf, "debug-mask"))
+	{
+		debug_mask_list();
 		exit(EXIT_SUCCESS);
 	}
 #endif
